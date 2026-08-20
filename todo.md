@@ -1,0 +1,24 @@
+# Project TODO
+
+- [x] Document the VoteBoard MVP scope, tenant model, election lifecycle, and integrity safeguards.
+- [x] Create a public VoteBoard landing experience with clear organization onboarding.
+- [x] Define tenant-aware entities for organizations, memberships, elections, candidates, ballots, votes, and audit events.
+- [x] Implement organization creation and organization-admin membership controls.
+- [x] Implement workspace navigation and an organization dashboard.
+- [x] Implement election-board creation, configuration, scheduling, and lifecycle status controls.
+- [x] Implement candidate management and single-choice ballot configuration.
+- [x] Implement voter enrollment and access control scoped to each election.
+- [x] Implement one-vote-per-voter safeguards and anonymous ballot storage boundaries.
+- [x] Implement election results with visibility controlled by election status.
+- [x] Implement platform-owner administration and cross-tenant operational oversight.
+- [x] Add accessible loading, empty, validation, and error states across all primary workflows.
+- [x] Add Vitest coverage for authorization, tenant isolation, election lifecycle, and vote eligibility rules.
+- [x] Validate the responsive interface, server behavior, and database migrations before delivery.
+- [x] Align the local project with the Ballotly GitHub repository and preserve a clean commit history.
+- [x] Configure a MERN application structure using React, Node.js, Express, and MongoDB.
+- [x] Replace generic template styling with a distinctive, accessible Ballotly visual system and responsive product interface.
+- [x] Add immutable anonymous and attributable ballot modes to election configuration.
+- [x] Display unambiguous pre-ballot disclosure and acknowledgment for attributable elections.
+- [x] Prevent administrators from viewing voter-to-selection links in anonymous elections.
+- [x] Add deployment documentation for ballotly.alliancedev.online and MongoDB configuration.
+- [x] Prepare the repository for Vercel deployment without committing the MongoDB connection string.
