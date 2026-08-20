@@ -30,3 +30,7 @@
 - [x] Diagnose and correct the Vercel `auth.me` and `auth.login` 500 responses.
 - [x] Verify authentication API errors return tRPC-compatible JSON rather than HTML or plain text.
 - [x] Fix the post-login workspace onboarding so new users can immediately find organization and election-board creation.
+- [x] Fix mobile board-setup dialog scrolling so every input and submit action remains reachable.
+- [x] Remove horizontal overflow from the mobile landing page and validate the responsive layout.
+- [ ] Verify the election-board dialog on an authenticated mobile session, including its final submit action.
+- [ ] Confirm the deployed mobile landing page has no residual horizontal scroll after the responsive rebuild.
