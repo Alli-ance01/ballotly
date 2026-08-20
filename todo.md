@@ -27,3 +27,5 @@
 - [x] Add a Ballotly-branded account page with account creation and sign-in states.
 - [x] Remove remaining scaffold OAuth handling from Ballotly’s active server flow.
 - [x] Add native-session validation tests for authenticated and invalid requests.
+- [x] Diagnose and correct the Vercel `auth.me` and `auth.login` 500 responses.
+- [ ] Verify authentication API errors return tRPC-compatible JSON rather than HTML or plain text.

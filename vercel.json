@@ -3,6 +3,11 @@
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "dist/public",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
