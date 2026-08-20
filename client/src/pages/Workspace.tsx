@@ -1,4 +1,3 @@
-import { startLogin } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -25,7 +24,7 @@ export default function Workspace() {
 
   if (organizationId) return <OrganizationWorkspace />;
   if (loading) return <div className="app-loading"><Loader2 className="animate-spin" /> Preparing your workspace</div>;
-  if (!user) return <div className="app-loading"><div><h1>Sign in to make decisions count.</h1><p>Ballotly workspaces are private to your organization.</p><Button onClick={() => startLogin()} className="button-ink">Sign in <ArrowRight size={17} /></Button></div></div>;
+  if (!user) return <div className="app-loading"><div><h1>Sign in to make decisions count.</h1><p>Ballotly workspaces are private to your organization.</p><Button onClick={() => setLocation("/account")} className="button-ink">Sign in <ArrowRight size={17} /></Button></div></div>;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();

@@ -80,6 +80,36 @@ export async function getUserByOpenId(openId: string) {
   return user ? asUser(user) : undefined;
 }
 
+export async function getUserById(id: string) {
+  await connectMongo();
+  const user = await UserModel.findById(objectId(id, "User")).lean();
+  return user ? asUser(user) : null;
+}
+
+export async function getUserWithPasswordByEmail(email: string) {
+  await connectMongo();
+  const record = await UserModel.findOne({ email }).select("+passwordHash").lean();
+  if (!record) return null;
+  return { user: asUser(record), passwordHash: record.passwordHash as string | null };
+}
+
+export async function registerNativeUser(input: { name: string; email: string; passwordHash: string }) {
+  await connectMongo();
+  const existing = await UserModel.exists({ email: input.email });
+  if (existing) throw new Error("An account with that email already exists.");
+  const openId = `ballotly_${new mongoose.Types.ObjectId().toString()}`;
+  const user = await UserModel.create({
+    openId,
+    name: input.name,
+    email: input.email,
+    loginMethod: "password",
+    passwordHash: input.passwordHash,
+    role: "user",
+    lastSignedIn: new Date(),
+  });
+  return asUser(user.toObject());
+}
+
 export async function upsertUser(input: Omit<Partial<AppUser>, "id" | "createdAt" | "updatedAt"> & { openId: string }) {
   await connectMongo();
   const set: Record<string, unknown> = { lastSignedIn: input.lastSignedIn ?? new Date() };

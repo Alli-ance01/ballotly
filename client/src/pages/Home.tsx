@@ -1,4 +1,3 @@
-import { startLogin } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { ArrowRight, Check, Eye, Landmark, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
 import { useLocation } from "wouter";
@@ -10,7 +9,7 @@ function LogoMark() {
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
-  const openWorkspace = () => (isAuthenticated ? setLocation("/workspace") : startLogin());
+  const openWorkspace = () => setLocation(isAuthenticated ? "/workspace" : "/account");
 
   return (
     <div className="site-shell overflow-hidden">

@@ -22,3 +22,8 @@
 - [x] Prevent administrators from viewing voter-to-selection links in anonymous elections.
 - [x] Add deployment documentation for ballotly.alliancedev.online and MongoDB configuration.
 - [x] Prepare the repository for Vercel deployment without committing the MongoDB connection string.
+- [x] Replace scaffold-specific sign-in with native Ballotly email-and-password account registration.
+- [x] Implement secure server-side sign-in, sign-out, and session validation for Vercel deployment.
+- [x] Add a Ballotly-branded account page with account creation and sign-in states.
+- [x] Remove remaining scaffold OAuth handling from Ballotly’s active server flow.
+- [x] Add native-session validation tests for authenticated and invalid requests.

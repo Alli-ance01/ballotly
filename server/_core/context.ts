@@ -1,6 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { AppUser } from "../types";
-import { sdk } from "./sdk";
+import { getBallotlySessionUser } from "../nativeAuth";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -13,12 +13,7 @@ export async function createContext(
 ): Promise<TrpcContext> {
   let user: AppUser | null = null;
 
-  try {
-    user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
-    // Authentication is optional for public procedures.
-    user = null;
-  }
+  user = await getBallotlySessionUser(opts.req);
 
   return {
     req: opts.req,

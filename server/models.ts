@@ -17,8 +17,9 @@ const userSchema = new Schema(
   {
     openId: { type: String, required: true, unique: true, index: true },
     name: { type: String, default: null },
-    email: { type: String, default: null, index: true },
+    email: { type: String, default: null, unique: true, sparse: true, lowercase: true, trim: true, index: true },
     loginMethod: { type: String, default: null },
+    passwordHash: { type: String, default: null, select: false },
     role: { type: String, enum: platformRoles, default: "user" },
     lastSignedIn: { type: Date, default: Date.now },
   },
