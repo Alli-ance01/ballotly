@@ -29,3 +29,4 @@
 - [x] Add native-session validation tests for authenticated and invalid requests.
 - [x] Diagnose and correct the Vercel `auth.me` and `auth.login` 500 responses.
 - [x] Verify authentication API errors return tRPC-compatible JSON rather than HTML or plain text.
+- [x] Fix the post-login workspace onboarding so new users can immediately find organization and election-board creation.
