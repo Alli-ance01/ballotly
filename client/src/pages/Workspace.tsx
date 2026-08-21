@@ -7,14 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Building2, Loader2, Plus, Settings2 } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import OrganizationWorkspace from "./OrganizationWorkspace";
 import { workspaceLocationForNewOrganization } from "../onboardingRules";
 
 export default function Workspace() {
   const { user, loading } = useAuth();
   const [location, setLocation] = useLocation();
-  const organizationId = new URLSearchParams(location.split("?")[1] ?? "").get("org");
+  const search = useSearch();
+  const organizationId = new URLSearchParams(search).get("org");
   const organizations = trpc.organizations.listMine.useQuery(undefined, { enabled: Boolean(user) });
   const utils = trpc.useUtils();
   const createOrganization = trpc.organizations.create.useMutation({ onSuccess: () => utils.organizations.listMine.invalidate() });

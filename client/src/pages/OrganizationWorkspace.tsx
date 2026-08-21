@@ -7,15 +7,15 @@ import { trpc } from "@/lib/trpc";
 import "../governance.css";
 import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, LockKeyhole, Plus, ShieldAlert, UserCog, UsersRound } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { useLocation } from "wouter";
-import { organizationWorkspaceLocation } from "../onboardingRules";
+import { useLocation, useSearch } from "wouter";
+import { organizationWorkspaceLocation, parseWorkspaceSearch } from "../onboardingRules";
 
 const statusClass = (status: string) => `election-status election-status-${status}`;
 
 export default function OrganizationWorkspace() {
   const [location, setLocation] = useLocation();
-  const organizationId = new URLSearchParams(location.split("?")[1] ?? "").get("org") ?? "";
-  const shouldOpenBoardSetup = new URLSearchParams(location.split("?")[1] ?? "").get("newElection") === "1";
+  const search = useSearch();
+  const { organizationId, shouldOpenBoardSetup } = parseWorkspaceSearch(search);
   const organizations = trpc.organizations.listMine.useQuery();
   const selected = organizations.data?.find(record => record.organization.id === organizationId);
   const elections = trpc.elections.list.useQuery({ organizationId }, { enabled: Boolean(organizationId) });

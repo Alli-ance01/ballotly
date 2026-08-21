@@ -37,3 +37,4 @@
 - [ ] Audit the full organization-to-election-to-ballot-to-results workflow against the deployed Ballotly implementation.
 - [ ] Run a user-approved labelled production test covering organization creation, voter enrollment, ballot casting, and final results.
 - [ ] Restore production dialog positioning and overlay styles so board-setup forms render above the page instead of below it.
+- [x] Fix query-string parsing so organization workspaces and automatic first-board setup open after organization creation.

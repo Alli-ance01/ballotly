@@ -5,3 +5,11 @@ export function workspaceLocationForNewOrganization(organizationId: string) {
 export function organizationWorkspaceLocation(organizationId: string) {
   return `/workspace?org=${organizationId}`;
 }
+
+export function parseWorkspaceSearch(search: string) {
+  const params = new URLSearchParams(search);
+  return {
+    organizationId: params.get("org") ?? "",
+    shouldOpenBoardSetup: params.get("newElection") === "1",
+  };
+}
