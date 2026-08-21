@@ -34,3 +34,6 @@
 - [x] Remove horizontal overflow from the mobile landing page and validate the responsive layout.
 - [ ] Verify the election-board dialog on an authenticated mobile session, including its final submit action.
 - [ ] Confirm the deployed mobile landing page has no residual horizontal scroll after the responsive rebuild.
+- [ ] Audit the full organization-to-election-to-ballot-to-results workflow against the deployed Ballotly implementation.
+- [ ] Run a user-approved labelled production test covering organization creation, voter enrollment, ballot casting, and final results.
+- [ ] Restore production dialog positioning and overlay styles so board-setup forms render above the page instead of below it.

@@ -20,3 +20,10 @@
 @layer base { *, *::before, *::after { box-sizing: border-box; } html, body, #root { width: 100%; max-width: 100%; overflow-x: clip; } }
 .hero-stage { overflow: clip; }
 @media (max-width: 640px) { [data-slot="dialog-content"].ballot-dialog { width: calc(100vw - 1rem); max-width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); padding: 1rem; } }
+
+[data-slot="dialog-overlay"] { position: fixed; inset: 0; z-index: 50; background: rgb(9 35 40 / 52%); backdrop-filter: blur(2px); }
+[data-slot="dialog-content"] { position: fixed; z-index: 51; top: 50%; left: 50%; width: calc(100% - 2rem); max-width: 32rem; max-height: calc(100dvh - 2rem); display: grid; gap: 1rem; overflow-y: auto; overscroll-behavior: contain; transform: translate(-50%, -50%); border: 1px solid #dacaaa; border-radius: 10px; padding: 1.5rem; box-shadow: 0 24px 72px rgb(13 47 53 / 30%); }
+[data-slot="dialog-content"].wide-dialog { max-width: 44rem; }
+[data-slot="dialog-close"] { position: absolute; top: .85rem; right: .85rem; width: 2rem; height: 2rem; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: #5f7377; }
+[data-slot="dialog-close"]:hover { background: #eee4cf; color: #12383e; }
+@media (max-width: 640px) { [data-slot="dialog-content"], [data-slot="dialog-content"].wide-dialog { width: calc(100% - 1rem); max-width: calc(100% - 1rem); max-height: calc(100dvh - 1rem); padding: 1rem; } }
