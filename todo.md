@@ -34,7 +34,18 @@
 - [x] Remove horizontal overflow from the mobile landing page and validate the responsive layout.
 - [ ] Verify the election-board dialog on an authenticated mobile session, including its final submit action.
 - [ ] Confirm the deployed mobile landing page has no residual horizontal scroll after the responsive rebuild.
-- [ ] Audit the full organization-to-election-to-ballot-to-results workflow against the deployed Ballotly implementation.
-- [ ] Run a user-approved labelled production test covering organization creation, voter enrollment, ballot casting, and final results.
-- [ ] Restore production dialog positioning and overlay styles so board-setup forms render above the page instead of below it.
+- [x] Audit the full organization-to-election-to-ballot-to-results workflow against the deployed Ballotly implementation.
+- [x] Run a user-approved labelled production test covering organization creation, voter enrollment, ballot casting, and final results.
+- [x] Restore production dialog positioning and overlay styles so board-setup forms render above the page instead of below it.
 - [x] Fix query-string parsing so organization workspaces and automatic first-board setup open after organization creation.
+- [x] Document Ballotly’s production-readiness scope, trust boundaries, and non-regulated-election limitations.
+- [ ] Add secure account recovery, verified-email readiness, and session-hardening controls.
+- [ ] Complete organization membership management, voter invitation status, and safe roster-import validation.
+- [x] Add immutable election configuration review, scheduled lifecycle enforcement, and close-election safeguards.
+- [x] Add stronger audit logs, exportable election records, and controlled results publication.
+- [ ] Add production UX for empty, loading, error, confirmation, and destructive-action states across workflows.
+- [ ] Complete keyboard, screen-reader, mobile, and reduced-motion accessibility refinements.
+- [ ] Add privacy, authorization, lifecycle, and failure-path regression tests with operational documentation.
+- [ ] Verify the hardened release on Vercel and push the final production-oriented build.
+- [x] Expose owner-controlled active-member role changes and removal in the workspace UI.
+- [ ] Add voter invitation status and activation guidance to the election administration UI.

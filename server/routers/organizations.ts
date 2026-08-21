@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assignOrganizationRole, createOrganization, getOrganizationAccess, listOrganizationMembers, listOrganizationsForUser, writeAuditEvent } from "../db";
+import { assignOrganizationRole, createOrganization, createOrganizationInvitation, getOrganizationAccess, listOrganizationInvitations, listOrganizationMembers, listOrganizationsForUser, removeOrganizationMember, revokeOrganizationInvitation, writeAuditEvent } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { canAssignOrganizationRoles } from "../authorizationRules";
 
@@ -57,6 +57,48 @@ export const organizationRouter = router({
         return membership;
       } catch (error) {
         throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to assign the workspace role." });
+      }
+    }),
+
+  invite: protectedProcedure
+    .input(z.object({ organizationId: objectIdInput, email: z.string().email().max(320), role: z.enum(["admin", "member"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+      if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Only the organization owner can invite workspace members." });
+      const invitation = await createOrganizationInvitation({ ...input, createdByUserId: ctx.user.id });
+      await writeAuditEvent({ organizationId: input.organizationId, actorUserId: ctx.user.id, eventType: "organization.invitation_created", targetType: "organization_invitation", targetId: invitation.id, metadata: { role: input.role } });
+      return invitation;
+    }),
+
+  invitations: protectedProcedure
+    .input(z.object({ organizationId: objectIdInput }))
+    .query(async ({ ctx, input }) => {
+      const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+      if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Only the organization owner can view workspace invitations." });
+      return listOrganizationInvitations(input.organizationId);
+    }),
+
+  revokeInvitation: protectedProcedure
+    .input(z.object({ organizationId: objectIdInput, invitationId: objectIdInput }))
+    .mutation(async ({ ctx, input }) => {
+      const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+      if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Only the organization owner can revoke workspace invitations." });
+      const invitation = await revokeOrganizationInvitation(input.organizationId, input.invitationId);
+      await writeAuditEvent({ organizationId: input.organizationId, actorUserId: ctx.user.id, eventType: "organization.invitation_revoked", targetType: "organization_invitation", targetId: invitation.id });
+      return invitation;
+    }),
+
+  removeMember: protectedProcedure
+    .input(z.object({ organizationId: objectIdInput, membershipId: objectIdInput }))
+    .mutation(async ({ ctx, input }) => {
+      const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+      if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Only the organization owner can remove workspace members." });
+      try {
+        const removed = await removeOrganizationMember({ organizationId: input.organizationId, membershipId: input.membershipId, protectedUserId: ctx.user.id });
+        await writeAuditEvent({ organizationId: input.organizationId, actorUserId: ctx.user.id, eventType: "organization.member_removed", targetType: "organization_membership", targetId: removed.id });
+        return removed;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to remove this workspace member." });
       }
     }),
 });

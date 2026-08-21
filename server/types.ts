@@ -3,6 +3,7 @@ export type OrganizationRole = "owner" | "admin" | "member";
 export type ElectionStatus = "draft" | "scheduled" | "open" | "closed" | "archived";
 export type BallotMode = "anonymous" | "attributable";
 export type ResultsVisibility = "after_close" | "always" | "admins_only";
+export type InvitationStatus = "pending" | "accepted" | "revoked" | "expired";
 
 export type AppUser = {
   id: string;
@@ -14,6 +15,8 @@ export type AppUser = {
   createdAt: Date;
   updatedAt: Date;
   lastSignedIn: Date;
+  emailVerifiedAt: Date | null;
+  sessionVersion: number;
 };
 
 export type OrganizationView = {

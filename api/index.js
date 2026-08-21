@@ -187,7 +187,9 @@ var userSchema = new Schema(
     loginMethod: { type: String, default: null },
     passwordHash: { type: String, default: null, select: false },
     role: { type: String, enum: platformRoles, default: "user" },
-    lastSignedIn: { type: Date, default: Date.now }
+    lastSignedIn: { type: Date, default: Date.now },
+    emailVerifiedAt: { type: Date, default: null },
+    sessionVersion: { type: Number, default: 0 }
   },
   { timestamps: true }
 );
@@ -209,6 +211,28 @@ var membershipSchema = new Schema(
   { timestamps: true }
 );
 membershipSchema.index({ organizationId: 1, userId: 1 }, { unique: true });
+var organizationInvitationSchema = new Schema(
+  {
+    organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    role: { type: String, enum: ["admin", "member"], default: "member" },
+    status: { type: String, enum: ["pending", "accepted", "revoked", "expired"], default: "pending", index: true },
+    createdByUserId: { type: Schema.Types.ObjectId, required: true },
+    acceptedByUserId: { type: Schema.Types.ObjectId, default: null },
+    expiresAt: { type: Date, required: true, index: true }
+  },
+  { timestamps: true }
+);
+organizationInvitationSchema.index({ organizationId: 1, email: 1, status: 1 });
+var loginAttemptSchema = new Schema(
+  {
+    email: { type: String, required: true, lowercase: true, trim: true, unique: true, index: true },
+    failureCount: { type: Number, default: 0 },
+    windowStartedAt: { type: Date, default: Date.now },
+    blockedUntil: { type: Date, default: null }
+  },
+  { timestamps: true }
+);
 var electionSchema = new Schema(
   {
     organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
@@ -248,7 +272,9 @@ var voterEligibilitySchema = new Schema(
     userId: { type: Schema.Types.ObjectId, default: null, index: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     displayName: { type: String, default: null },
-    hasVoted: { type: Boolean, default: false }
+    hasVoted: { type: Boolean, default: false },
+    invitationStatus: { type: String, enum: ["pending", "accepted", "revoked", "expired"], default: "pending", index: true },
+    invitationExpiresAt: { type: Date, default: () => new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14) }
   },
   { timestamps: true }
 );
@@ -280,6 +306,8 @@ auditEventSchema.index({ organizationId: 1, createdAt: -1 });
 var UserModel = mongoose.models.User || mongoose.model("User", userSchema);
 var OrganizationModel = mongoose.models.Organization || mongoose.model("Organization", organizationSchema);
 var MembershipModel = mongoose.models.OrganizationMembership || mongoose.model("OrganizationMembership", membershipSchema);
+var OrganizationInvitationModel = mongoose.models.OrganizationInvitation || mongoose.model("OrganizationInvitation", organizationInvitationSchema);
+var LoginAttemptModel = mongoose.models.LoginAttempt || mongoose.model("LoginAttempt", loginAttemptSchema);
 var ElectionModel = mongoose.models.Election || mongoose.model("Election", electionSchema);
 var BallotModel = mongoose.models.Ballot || mongoose.model("Ballot", ballotSchema);
 var CandidateModel = mongoose.models.Candidate || mongoose.model("Candidate", candidateSchema);
@@ -320,6 +348,36 @@ function assertElectionTransition(currentStatus, nextStatus) {
 function canChangeBallotMode(status, enrolledVoterCount) {
   return status === "draft" && enrolledVoterCount === 0;
 }
+function assertElectionReadyForLaunch(input) {
+  if (input.candidateCount < 2) throw new Error("Add at least two candidates before opening an election.");
+  if (input.voterCount < 1) throw new Error("Enroll at least one voter before opening an election.");
+  if (input.status === "scheduled" && input.opensAt && input.opensAt.getTime() > (input.now ?? /* @__PURE__ */ new Date()).getTime()) {
+    throw new Error("This election is scheduled to open later. Update its schedule before opening it early.");
+  }
+}
+function parseVoterRoster(raw) {
+  const seen = /* @__PURE__ */ new Set();
+  const accepted = [];
+  const rejected = [];
+  raw.split(/\r?\n/).forEach((line, index) => {
+    const value = line.trim();
+    if (!value || /^email\s*(,|$)/i.test(value)) return;
+    const [emailCell, ...nameCells] = value.split(",");
+    const email = normalizeEmail(emailCell ?? "");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      rejected.push({ line: index + 1, value, reason: "Enter one valid email address per line." });
+      return;
+    }
+    if (seen.has(email)) {
+      rejected.push({ line: index + 1, value, reason: "This email appears more than once." });
+      return;
+    }
+    seen.add(email);
+    const displayName = nameCells.join(",").trim();
+    accepted.push({ email, ...displayName ? { displayName: displayName.slice(0, 160) } : {} });
+  });
+  return { accepted, rejected };
+}
 function isElectionOpen(election, now = /* @__PURE__ */ new Date()) {
   return election.status === "open" && (!election.opensAt || election.opensAt.getTime() <= now.getTime()) && (!election.closesAt || election.closesAt.getTime() > now.getTime());
 }
@@ -341,7 +399,9 @@ function asUser(record) {
     role: record.role,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
-    lastSignedIn: record.lastSignedIn
+    lastSignedIn: record.lastSignedIn,
+    emailVerifiedAt: record.emailVerifiedAt ?? null,
+    sessionVersion: record.sessionVersion ?? 0
   };
 }
 function asOrganization(record) {
@@ -399,9 +459,64 @@ async function registerNativeUser(input) {
     loginMethod: "password",
     passwordHash: input.passwordHash,
     role: "user",
-    lastSignedIn: /* @__PURE__ */ new Date()
+    lastSignedIn: /* @__PURE__ */ new Date(),
+    sessionVersion: 0
   });
   return asUser(user.toObject());
+}
+var LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1e3;
+var LOGIN_MAX_FAILURES = 5;
+async function isLoginTemporarilyBlocked(email) {
+  await connectMongo();
+  const attempt = await LoginAttemptModel.findOne({ email: normalizeEmail(email) }).lean();
+  return Boolean(attempt?.blockedUntil && attempt.blockedUntil.getTime() > Date.now());
+}
+async function recordLoginFailure(email) {
+  await connectMongo();
+  const normalized = normalizeEmail(email);
+  const now = /* @__PURE__ */ new Date();
+  const attempt = await LoginAttemptModel.findOne({ email: normalized });
+  const withinWindow = Boolean(attempt && now.getTime() - attempt.windowStartedAt.getTime() < LOGIN_FAILURE_WINDOW_MS);
+  const failureCount = withinWindow ? (attempt?.failureCount ?? 0) + 1 : 1;
+  const blockedUntil = failureCount >= LOGIN_MAX_FAILURES ? new Date(now.getTime() + LOGIN_FAILURE_WINDOW_MS) : null;
+  await LoginAttemptModel.findOneAndUpdate(
+    { email: normalized },
+    { $set: { failureCount, windowStartedAt: withinWindow ? attempt.windowStartedAt : now, blockedUntil } },
+    { upsert: true }
+  );
+}
+async function clearLoginFailures(email) {
+  await connectMongo();
+  await LoginAttemptModel.deleteOne({ email: normalizeEmail(email) });
+}
+async function changeNativeUserPassword(input) {
+  await connectMongo();
+  const user = await UserModel.findByIdAndUpdate(
+    objectId(input.userId, "User"),
+    { $set: { passwordHash: input.passwordHash, lastSignedIn: /* @__PURE__ */ new Date() }, $inc: { sessionVersion: 1 } },
+    { new: true }
+  ).lean();
+  if (!user) throw new Error("Account not found.");
+  return asUser(user);
+}
+async function acceptPendingOrganizationInvitations(user) {
+  if (!user.email) return 0;
+  await connectMongo();
+  const now = /* @__PURE__ */ new Date();
+  const email = normalizeEmail(user.email);
+  await OrganizationInvitationModel.updateMany({ email, status: "pending", expiresAt: { $lte: now } }, { $set: { status: "expired" } });
+  const invitations = await OrganizationInvitationModel.find({ email, status: "pending", expiresAt: { $gt: now } });
+  for (const invitation of invitations) {
+    await MembershipModel.findOneAndUpdate(
+      { organizationId: invitation.organizationId, userId: objectId(user.id, "User") },
+      { $setOnInsert: { organizationId: invitation.organizationId, userId: objectId(user.id, "User"), role: invitation.role } },
+      { upsert: true }
+    );
+    invitation.status = "accepted";
+    invitation.acceptedByUserId = objectId(user.id, "User");
+    await invitation.save();
+  }
+  return invitations.length;
 }
 async function listOrganizationsForUser(userId) {
   await connectMongo();
@@ -477,6 +592,45 @@ async function assignOrganizationRole(input) {
   ).lean();
   return { id: asId(membership._id), userId: asId(user._id), role: membership.role, name: user.name ?? null, email: user.email ?? null };
 }
+async function createOrganizationInvitation(input) {
+  await connectMongo();
+  const email = normalizeEmail(input.email);
+  const invitation = await OrganizationInvitationModel.findOneAndUpdate(
+    { organizationId: objectId(input.organizationId, "Organization"), email, status: "pending" },
+    {
+      $set: { role: input.role, createdByUserId: objectId(input.createdByUserId, "User"), expiresAt: new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14) },
+      $setOnInsert: { organizationId: objectId(input.organizationId, "Organization"), email, status: "pending" }
+    },
+    { upsert: true, new: true }
+  ).lean();
+  return { id: asId(invitation._id), email: invitation.email, role: invitation.role, status: invitation.status, expiresAt: invitation.expiresAt };
+}
+async function listOrganizationInvitations(organizationId) {
+  await connectMongo();
+  const now = /* @__PURE__ */ new Date();
+  const id = objectId(organizationId, "Organization");
+  await OrganizationInvitationModel.updateMany({ organizationId: id, status: "pending", expiresAt: { $lte: now } }, { $set: { status: "expired" } });
+  const invitations = await OrganizationInvitationModel.find({ organizationId: id }).sort({ createdAt: -1 }).lean();
+  return invitations.map((invitation) => ({ id: asId(invitation._id), email: invitation.email, role: invitation.role, status: invitation.status, expiresAt: invitation.expiresAt, createdAt: invitation.createdAt }));
+}
+async function revokeOrganizationInvitation(organizationId, invitationId) {
+  await connectMongo();
+  const invitation = await OrganizationInvitationModel.findOneAndUpdate(
+    { _id: objectId(invitationId, "Invitation"), organizationId: objectId(organizationId, "Organization"), status: "pending" },
+    { $set: { status: "revoked" } },
+    { new: true }
+  ).lean();
+  if (!invitation) throw new Error("Pending invitation not found.");
+  return { id: asId(invitation._id), status: invitation.status };
+}
+async function removeOrganizationMember(input) {
+  await connectMongo();
+  const membership = await MembershipModel.findOne({ _id: objectId(input.membershipId, "Membership"), organizationId: objectId(input.organizationId, "Organization") }).lean();
+  if (!membership) throw new Error("Membership not found.");
+  if (membership.role === "owner" || asId(membership.userId) === input.protectedUserId) throw new Error("The organization owner cannot be removed from this workspace.");
+  await MembershipModel.deleteOne({ _id: membership._id });
+  return { id: asId(membership._id) };
+}
 async function createElection(input) {
   await connectMongo();
   const election = await ElectionModel.create({
@@ -505,7 +659,11 @@ async function listElectionsForOrganization(organizationId) {
 }
 async function getElectionById(electionId) {
   await connectMongo();
-  const election = await ElectionModel.findById(objectId(electionId, "Election")).lean();
+  const id = objectId(electionId, "Election");
+  const now = /* @__PURE__ */ new Date();
+  await ElectionModel.updateOne({ _id: id, status: "scheduled", opensAt: { $lte: now } }, { $set: { status: "open" } });
+  await ElectionModel.updateOne({ _id: id, status: "open", closesAt: { $lte: now } }, { $set: { status: "closed" } });
+  const election = await ElectionModel.findById(id).lean();
   if (!election) return null;
   const [candidates, ballot] = await Promise.all([
     CandidateModel.find({ electionId: election._id }).sort({ sortOrder: 1, name: 1 }).lean(),
@@ -542,6 +700,11 @@ async function setElectionSchedule(electionId, opensAt, closesAt) {
   await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), { $set: { opensAt, closesAt } });
   return getElectionById(electionId);
 }
+async function setElectionResultsVisibility(electionId, resultsVisibility) {
+  await connectMongo();
+  await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), { $set: { resultsVisibility } });
+  return getElectionById(electionId);
+}
 async function addCandidate(input) {
   await connectMongo();
   const last = await CandidateModel.findOne({ electionId: objectId(input.electionId, "Election") }).sort({ sortOrder: -1 }).lean();
@@ -553,23 +716,38 @@ async function addCandidate(input) {
   });
   return { id: asId(candidate._id), name: candidate.name, biography: candidate.biography ?? null, sortOrder: candidate.sortOrder };
 }
+async function removeCandidate(electionId, candidateId) {
+  await connectMongo();
+  const candidate = await CandidateModel.findOneAndDelete({ _id: objectId(candidateId, "Candidate"), electionId: objectId(electionId, "Election") }).lean();
+  if (!candidate) throw new Error("Candidate not found on this election.");
+  return { id: asId(candidate._id) };
+}
 async function createOrUpdateVoterEligibility(input) {
   await connectMongo();
   const voter = await VoterEligibilityModel.findOneAndUpdate(
     { electionId: objectId(input.electionId, "Election"), email: normalizeEmail(input.email) },
-    { $set: { displayName: input.displayName || null }, $setOnInsert: { electionId: objectId(input.electionId, "Election"), email: normalizeEmail(input.email) } },
+    { $set: { displayName: input.displayName || null, invitationStatus: "pending", invitationExpiresAt: new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14) }, $setOnInsert: { electionId: objectId(input.electionId, "Election"), email: normalizeEmail(input.email) } },
     { upsert: true, new: true }
   ).lean();
-  return { id: asId(voter._id), email: voter.email, displayName: voter.displayName ?? null, hasVoted: voter.hasVoted };
+  return { id: asId(voter._id), email: voter.email, displayName: voter.displayName ?? null, hasVoted: voter.hasVoted, invitationStatus: voter.invitationStatus };
 }
 async function listVoterEligibility(electionId) {
   await connectMongo();
-  const voters = await VoterEligibilityModel.find({ electionId: objectId(electionId, "Election") }).sort({ email: 1 }).lean();
-  return voters.map((voter) => ({ id: asId(voter._id), email: voter.email, displayName: voter.displayName ?? null, hasVoted: voter.hasVoted, createdAt: voter.createdAt }));
+  const now = /* @__PURE__ */ new Date();
+  const electionObjectId = objectId(electionId, "Election");
+  await VoterEligibilityModel.updateMany({ electionId: electionObjectId, invitationStatus: "pending", invitationExpiresAt: { $lte: now } }, { $set: { invitationStatus: "expired" } });
+  const voters = await VoterEligibilityModel.find({ electionId: electionObjectId }).sort({ email: 1 }).lean();
+  return voters.map((voter) => ({ id: asId(voter._id), email: voter.email, displayName: voter.displayName ?? null, hasVoted: voter.hasVoted, invitationStatus: voter.invitationStatus, activationStatus: voter.userId ? "active" : "awaiting_account", createdAt: voter.createdAt }));
+}
+async function removeVoterEligibility(electionId, voterId) {
+  await connectMongo();
+  const voter = await VoterEligibilityModel.findOneAndUpdate({ _id: objectId(voterId, "Voter"), electionId: objectId(electionId, "Election"), hasVoted: false }, { $set: { invitationStatus: "revoked" } }, { new: true }).lean();
+  if (!voter) throw new Error("This voter cannot be removed because they have already voted or are not in this election.");
+  return { id: asId(voter._id) };
 }
 async function getVoterEnrollmentCount(electionId) {
   await connectMongo();
-  return VoterEligibilityModel.countDocuments({ electionId: objectId(electionId, "Election") });
+  return VoterEligibilityModel.countDocuments({ electionId: objectId(electionId, "Election"), $or: [{ invitationStatus: { $in: ["pending", "accepted"] } }, { invitationStatus: { $exists: false } }] });
 }
 async function getVotingEligibility(input) {
   await connectMongo();
@@ -577,11 +755,12 @@ async function getVotingEligibility(input) {
   const userId = objectId(input.userId, "User");
   const conditions = [{ userId }];
   if (input.email) conditions.push({ email: normalizeEmail(input.email) });
-  const voter = await VoterEligibilityModel.findOne({ electionId, $or: conditions }).lean();
+  const voter = await VoterEligibilityModel.findOne({ electionId, $and: [{ $or: [{ invitationStatus: { $in: ["pending", "accepted"] } }, { invitationStatus: { $exists: false } }] }, { $or: conditions }] }).lean();
   if (!voter) return null;
   if (!voter.userId) {
-    await VoterEligibilityModel.updateOne({ _id: voter._id, userId: null }, { $set: { userId } });
+    await VoterEligibilityModel.updateOne({ _id: voter._id, userId: null }, { $set: { userId, invitationStatus: "accepted" } });
     voter.userId = userId;
+    voter.invitationStatus = "accepted";
   }
   return { id: asId(voter._id), hasVoted: voter.hasVoted };
 }
@@ -632,6 +811,23 @@ async function getElectionResults(electionId) {
     eligibleVoters
   };
 }
+async function listAuditEvents(organizationId, targetId) {
+  await connectMongo();
+  const filter = { organizationId: objectId(organizationId, "Organization") };
+  if (targetId) filter.targetId = targetId;
+  const events = await AuditEventModel.find(filter).sort({ createdAt: -1 }).limit(500).lean();
+  return events.map((event) => ({ id: asId(event._id), eventType: event.eventType, targetType: event.targetType, targetId: event.targetId, metadata: event.metadata ?? null, createdAt: event.createdAt }));
+}
+async function getElectionRecordExport(electionId) {
+  const election = await getElectionById(electionId);
+  if (!election) throw new Error("Election not found.");
+  const [voters, results, auditEvents] = await Promise.all([
+    listVoterEligibility(electionId),
+    getElectionResults(electionId),
+    listAuditEvents(election.organizationId, electionId)
+  ]);
+  return { generatedAt: /* @__PURE__ */ new Date(), election: { ...election, candidates: election.candidates, voterCount: voters.length }, results, auditEvents };
+}
 async function writeAuditEvent(input) {
   await connectMongo();
   await AuditEventModel.create({
@@ -666,12 +862,12 @@ function sessionSecret() {
   return new TextEncoder().encode(secret);
 }
 async function createBallotlySession(user) {
-  return new SignJWT({ email: user.email ?? "", role: user.role }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setSubject(user.id).setIssuedAt().setExpirationTime(`${SESSION_DURATION_SECONDS}s`).sign(sessionSecret());
+  return new SignJWT({ email: user.email ?? "", role: user.role, sv: user.sessionVersion }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setSubject(user.id).setIssuer("ballotly").setAudience("ballotly-web").setIssuedAt().setExpirationTime(`${SESSION_DURATION_SECONDS}s`).sign(sessionSecret());
 }
 async function verifyBallotlySessionToken(token) {
   try {
-    const { payload } = await jwtVerify(token, sessionSecret(), { algorithms: ["HS256"] });
-    return typeof payload.sub === "string" ? payload.sub : null;
+    const { payload } = await jwtVerify(token, sessionSecret(), { algorithms: ["HS256"], issuer: "ballotly", audience: "ballotly-web" });
+    return typeof payload.sub === "string" && typeof payload.sv === "number" ? { userId: payload.sub, sessionVersion: payload.sv } : null;
   } catch {
     return null;
   }
@@ -679,8 +875,10 @@ async function verifyBallotlySessionToken(token) {
 async function getBallotlySessionUser(req) {
   const token = parse(req.headers.cookie ?? "")[BALLOTLY_SESSION_COOKIE];
   if (!token) return null;
-  const userId = await verifyBallotlySessionToken(token);
-  return userId ? getUserById(userId) : null;
+  const session = await verifyBallotlySessionToken(token);
+  if (!session) return null;
+  const user = await getUserById(session.userId);
+  return user && user.sessionVersion === session.sessionVersion ? user : null;
 }
 function setBallotlySessionCookie(res, token) {
   res.cookie(BALLOTLY_SESSION_COOKIE, token, {
@@ -705,6 +903,8 @@ var credentialsSchema = z2.object({
   email: z2.string().email().max(320),
   password: z2.string().min(1).max(72)
 });
+var fallbackPasswordHash = "$2a$12$JYptgJj3KOPjX6j.E72BO.1dBCznshZ66fpW1Jg59KQcOTu3mJ8tO";
+var genericCredentialsError = () => new TRPCError3({ code: "UNAUTHORIZED", message: "Email address or password is incorrect." });
 var authRouter = router({
   me: publicProcedure.query(({ ctx }) => ctx.user),
   register: publicProcedure.input(credentialsSchema.extend({ name: z2.string().trim().min(2).max(100) })).mutation(async ({ ctx, input }) => {
@@ -717,22 +917,44 @@ var authRouter = router({
     const passwordHash = await bcrypt.hash(input.password, 12);
     try {
       const user = await registerNativeUser({ name: input.name, email, passwordHash });
+      await acceptPendingOrganizationInvitations(user);
       setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
       return user;
     } catch (error) {
       if (error instanceof Error && /already/i.test(error.message)) {
-        throw new TRPCError3({ code: "CONFLICT", message: "An account with that email address already exists. Sign in instead." });
+        throw new TRPCError3({ code: "CONFLICT", message: "We could not create this account. Try signing in or use a different email address." });
       }
       throw error;
     }
   }),
   login: publicProcedure.input(credentialsSchema).mutation(async ({ ctx, input }) => {
-    const account = await getUserWithPasswordByEmail(normalizeAccountEmail(input.email));
-    if (!account || !account.passwordHash || !await bcrypt.compare(input.password, account.passwordHash)) {
-      throw new TRPCError3({ code: "UNAUTHORIZED", message: "Email address or password is incorrect." });
+    const email = normalizeAccountEmail(input.email);
+    if (await isLoginTemporarilyBlocked(email)) {
+      await bcrypt.compare(input.password, fallbackPasswordHash);
+      throw genericCredentialsError();
     }
+    const account = await getUserWithPasswordByEmail(email);
+    const isValid = Boolean(account?.passwordHash) && await bcrypt.compare(input.password, account?.passwordHash ?? fallbackPasswordHash);
+    if (!account || !isValid) {
+      await recordLoginFailure(email);
+      throw genericCredentialsError();
+    }
+    await clearLoginFailures(email);
+    await acceptPendingOrganizationInvitations(account.user);
     setBallotlySessionCookie(ctx.res, await createBallotlySession(account.user));
     return account.user;
+  }),
+  changePassword: protectedProcedure.input(z2.object({ currentPassword: z2.string().min(1).max(72), newPassword: z2.string().min(1).max(72) })).mutation(async ({ ctx, input }) => {
+    const account = ctx.user.email ? await getUserWithPasswordByEmail(ctx.user.email) : null;
+    if (!account?.passwordHash || !await bcrypt.compare(input.currentPassword, account.passwordHash)) throw genericCredentialsError();
+    try {
+      assertPasswordPolicy(input.newPassword);
+    } catch (error) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Password does not meet the security requirements." });
+    }
+    const user = await changeNativeUserPassword({ userId: ctx.user.id, passwordHash: await bcrypt.hash(input.newPassword, 12) });
+    setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
+    return { success: true };
   }),
   logout: publicProcedure.mutation(({ ctx }) => {
     clearBallotlySessionCookie(ctx.res);
@@ -810,6 +1032,10 @@ var electionRouter = router({
     await requireManager(election.organizationId, ctx.user.id);
     try {
       assertElectionTransition(election.status, input.status);
+      if (input.status === "scheduled" && (!election.opensAt || !election.closesAt)) throw new Error("Set both an opening and closing time before scheduling this election.");
+      if (input.status === "open") {
+        assertElectionReadyForLaunch({ candidateCount: election.candidates.length, voterCount: await getVoterEnrollmentCount(election.id), status: election.status, opensAt: election.opensAt });
+      }
     } catch (error) {
       throw new TRPCError4({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Invalid election lifecycle transition." });
     }
@@ -854,6 +1080,15 @@ var electionRouter = router({
     await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "candidate.added", targetType: "candidate", targetId: candidate.id });
     return candidate;
   }),
+  removeCandidate: protectedProcedure.input(z3.object({ electionId: objectIdInput, candidateId: objectIdInput })).mutation(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    await requireManager(election.organizationId, ctx.user.id);
+    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Candidates are locked once voting opens." });
+    const candidate = await removeCandidate(election.id, input.candidateId);
+    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "candidate.removed", targetType: "candidate", targetId: candidate.id });
+    return candidate;
+  }),
   enrollVoter: protectedProcedure.input(z3.object({ electionId: objectIdInput, email: z3.string().email().max(320), displayName: z3.string().trim().max(160).optional() })).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
     if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
@@ -864,6 +1099,39 @@ var electionRouter = router({
     const voter = await createOrUpdateVoterEligibility({ ...input, email: normalizeEmail(input.email) });
     await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.enrolled", targetType: "voter_eligibility", targetId: voter.id });
     return voter;
+  }),
+  importVoters: protectedProcedure.input(z3.object({ electionId: objectIdInput, roster: z3.string().min(1).max(1e5) })).mutation(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    await requireManager(election.organizationId, ctx.user.id);
+    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Voter eligibility is locked once voting opens." });
+    const parsed = parseVoterRoster(input.roster);
+    if (parsed.rejected.length) throw new TRPCError4({ code: "BAD_REQUEST", message: `Correct ${parsed.rejected.length} roster issue${parsed.rejected.length === 1 ? "" : "s"} before importing.` });
+    for (const voter of parsed.accepted) await createOrUpdateVoterEligibility({ electionId: election.id, ...voter });
+    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.roster_imported", targetType: "election", targetId: election.id, metadata: { count: parsed.accepted.length } });
+    return { imported: parsed.accepted.length };
+  }),
+  removeVoter: protectedProcedure.input(z3.object({ electionId: objectIdInput, voterId: objectIdInput })).mutation(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    await requireManager(election.organizationId, ctx.user.id);
+    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Voter eligibility is locked once voting opens." });
+    try {
+      const voter = await removeVoterEligibility(election.id, input.voterId);
+      await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.removed", targetType: "voter_eligibility", targetId: voter.id });
+      return voter;
+    } catch (error) {
+      throw new TRPCError4({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to remove this voter." });
+    }
+  }),
+  updateResultsVisibility: protectedProcedure.input(z3.object({ electionId: objectIdInput, resultsVisibility: z3.enum(["after_close", "always", "admins_only"]) })).mutation(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    await requireManager(election.organizationId, ctx.user.id);
+    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Results visibility is locked once voting opens." });
+    const updated = await setElectionResultsVisibility(election.id, input.resultsVisibility);
+    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.results_visibility_changed", targetType: "election", targetId: election.id, metadata: { resultsVisibility: input.resultsVisibility } });
+    return updated;
   }),
   listVoters: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
@@ -880,6 +1148,20 @@ var electionRouter = router({
       throw new TRPCError4({ code: "FORBIDDEN", message: "Results are available after the election closes." });
     }
     return getElectionResults(election.id);
+  }),
+  audit: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    await requireManager(election.organizationId, ctx.user.id);
+    return listAuditEvents(election.organizationId, election.id);
+  }),
+  exportRecord: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    await requireManager(election.organizationId, ctx.user.id);
+    const record = await getElectionRecordExport(election.id);
+    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.record_exported", targetType: "election", targetId: election.id });
+    return record;
   })
 });
 
@@ -926,6 +1208,36 @@ var organizationRouter = router({
       return membership;
     } catch (error) {
       throw new TRPCError5({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to assign the workspace role." });
+    }
+  }),
+  invite: protectedProcedure.input(z4.object({ organizationId: objectIdInput2, email: z4.string().email().max(320), role: z4.enum(["admin", "member"]) })).mutation(async ({ ctx, input }) => {
+    const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+    if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError5({ code: "FORBIDDEN", message: "Only the organization owner can invite workspace members." });
+    const invitation = await createOrganizationInvitation({ ...input, createdByUserId: ctx.user.id });
+    await writeAuditEvent({ organizationId: input.organizationId, actorUserId: ctx.user.id, eventType: "organization.invitation_created", targetType: "organization_invitation", targetId: invitation.id, metadata: { role: input.role } });
+    return invitation;
+  }),
+  invitations: protectedProcedure.input(z4.object({ organizationId: objectIdInput2 })).query(async ({ ctx, input }) => {
+    const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+    if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError5({ code: "FORBIDDEN", message: "Only the organization owner can view workspace invitations." });
+    return listOrganizationInvitations(input.organizationId);
+  }),
+  revokeInvitation: protectedProcedure.input(z4.object({ organizationId: objectIdInput2, invitationId: objectIdInput2 })).mutation(async ({ ctx, input }) => {
+    const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+    if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError5({ code: "FORBIDDEN", message: "Only the organization owner can revoke workspace invitations." });
+    const invitation = await revokeOrganizationInvitation(input.organizationId, input.invitationId);
+    await writeAuditEvent({ organizationId: input.organizationId, actorUserId: ctx.user.id, eventType: "organization.invitation_revoked", targetType: "organization_invitation", targetId: invitation.id });
+    return invitation;
+  }),
+  removeMember: protectedProcedure.input(z4.object({ organizationId: objectIdInput2, membershipId: objectIdInput2 })).mutation(async ({ ctx, input }) => {
+    const access = await getOrganizationAccess(input.organizationId, ctx.user.id);
+    if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError5({ code: "FORBIDDEN", message: "Only the organization owner can remove workspace members." });
+    try {
+      const removed = await removeOrganizationMember({ organizationId: input.organizationId, membershipId: input.membershipId, protectedUserId: ctx.user.id });
+      await writeAuditEvent({ organizationId: input.organizationId, actorUserId: ctx.user.id, eventType: "organization.member_removed", targetType: "organization_membership", targetId: removed.id });
+      return removed;
+    } catch (error) {
+      throw new TRPCError5({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to remove this workspace member." });
     }
   })
 });

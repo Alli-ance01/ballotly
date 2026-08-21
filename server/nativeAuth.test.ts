@@ -9,6 +9,8 @@ const user: AppUser = {
   email: "member@example.org",
   loginMethod: "password",
   role: "user",
+  emailVerifiedAt: null,
+  sessionVersion: 0,
   createdAt: new Date("2026-08-20T00:00:00.000Z"),
   updatedAt: new Date("2026-08-20T00:00:00.000Z"),
   lastSignedIn: new Date("2026-08-20T00:00:00.000Z"),
@@ -21,10 +23,15 @@ describe("Ballotly native sessions", () => {
 
   it("creates a signed session that resolves to the authenticated account", async () => {
     const token = await createBallotlySession(user);
-    await expect(verifyBallotlySessionToken(token)).resolves.toBe(user.id);
+    await expect(verifyBallotlySessionToken(token)).resolves.toEqual({ userId: user.id, sessionVersion: 0 });
   });
 
   it("rejects malformed session tokens", async () => {
     await expect(verifyBallotlySessionToken("not-a-valid-token")).resolves.toBeNull();
+  });
+
+  it("preserves the issued session version so older sessions can be invalidated after account security changes", async () => {
+    const token = await createBallotlySession({ ...user, sessionVersion: 3 });
+    await expect(verifyBallotlySessionToken(token)).resolves.toEqual({ userId: user.id, sessionVersion: 3 });
   });
 });

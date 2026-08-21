@@ -22,6 +22,8 @@ const userSchema = new Schema(
     passwordHash: { type: String, default: null, select: false },
     role: { type: String, enum: platformRoles, default: "user" },
     lastSignedIn: { type: Date, default: Date.now },
+    emailVerifiedAt: { type: Date, default: null },
+    sessionVersion: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
@@ -45,6 +47,30 @@ const membershipSchema = new Schema(
   { timestamps: true },
 );
 membershipSchema.index({ organizationId: 1, userId: 1 }, { unique: true });
+
+const organizationInvitationSchema = new Schema(
+  {
+    organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    role: { type: String, enum: ["admin", "member"], default: "member" },
+    status: { type: String, enum: ["pending", "accepted", "revoked", "expired"], default: "pending", index: true },
+    createdByUserId: { type: Schema.Types.ObjectId, required: true },
+    acceptedByUserId: { type: Schema.Types.ObjectId, default: null },
+    expiresAt: { type: Date, required: true, index: true },
+  },
+  { timestamps: true },
+);
+organizationInvitationSchema.index({ organizationId: 1, email: 1, status: 1 });
+
+const loginAttemptSchema = new Schema(
+  {
+    email: { type: String, required: true, lowercase: true, trim: true, unique: true, index: true },
+    failureCount: { type: Number, default: 0 },
+    windowStartedAt: { type: Date, default: Date.now },
+    blockedUntil: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
 
 const electionSchema = new Schema(
   {
@@ -89,6 +115,8 @@ const voterEligibilitySchema = new Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     displayName: { type: String, default: null },
     hasVoted: { type: Boolean, default: false },
+    invitationStatus: { type: String, enum: ["pending", "accepted", "revoked", "expired"], default: "pending", index: true },
+    invitationExpiresAt: { type: Date, default: () => new Date(Date.now() + 1000 * 60 * 60 * 24 * 14) },
   },
   { timestamps: true },
 );
@@ -123,6 +151,8 @@ auditEventSchema.index({ organizationId: 1, createdAt: -1 });
 export const UserModel = mongoose.models.User || mongoose.model("User", userSchema);
 export const OrganizationModel = mongoose.models.Organization || mongoose.model("Organization", organizationSchema);
 export const MembershipModel = mongoose.models.OrganizationMembership || mongoose.model("OrganizationMembership", membershipSchema);
+export const OrganizationInvitationModel = mongoose.models.OrganizationInvitation || mongoose.model("OrganizationInvitation", organizationInvitationSchema);
+export const LoginAttemptModel = mongoose.models.LoginAttempt || mongoose.model("LoginAttempt", loginAttemptSchema);
 export const ElectionModel = mongoose.models.Election || mongoose.model("Election", electionSchema);
 export const BallotModel = mongoose.models.Ballot || mongoose.model("Ballot", ballotSchema);
 export const CandidateModel = mongoose.models.Candidate || mongoose.model("Candidate", candidateSchema);

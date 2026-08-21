@@ -17,9 +17,11 @@ function sessionSecret() {
 }
 
 export async function createBallotlySession(user: AppUser) {
-  return new SignJWT({ email: user.email ?? "", role: user.role })
+  return new SignJWT({ email: user.email ?? "", role: user.role, sv: user.sessionVersion })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(user.id)
+    .setIssuer("ballotly")
+    .setAudience("ballotly-web")
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION_SECONDS}s`)
     .sign(sessionSecret());
@@ -27,8 +29,8 @@ export async function createBallotlySession(user: AppUser) {
 
 export async function verifyBallotlySessionToken(token: string) {
   try {
-    const { payload } = await jwtVerify(token, sessionSecret(), { algorithms: ["HS256"] });
-    return typeof payload.sub === "string" ? payload.sub : null;
+    const { payload } = await jwtVerify(token, sessionSecret(), { algorithms: ["HS256"], issuer: "ballotly", audience: "ballotly-web" });
+    return typeof payload.sub === "string" && typeof payload.sv === "number" ? { userId: payload.sub, sessionVersion: payload.sv } : null;
   } catch {
     return null;
   }
@@ -37,8 +39,10 @@ export async function verifyBallotlySessionToken(token: string) {
 export async function getBallotlySessionUser(req: Request) {
   const token = parse(req.headers.cookie ?? "")[BALLOTLY_SESSION_COOKIE];
   if (!token) return null;
-  const userId = await verifyBallotlySessionToken(token);
-  return userId ? getUserById(userId) : null;
+  const session = await verifyBallotlySessionToken(token);
+  if (!session) return null;
+  const user = await getUserById(session.userId);
+  return user && user.sessionVersion === session.sessionVersion ? user : null;
 }
 
 export function setBallotlySessionCookie(res: Response, token: string) {

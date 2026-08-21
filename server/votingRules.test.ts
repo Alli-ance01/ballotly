@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertElectionReadyForLaunch,
   assertElectionTransition,
   assertVoteEligibility,
   canChangeBallotMode,
   canTransitionElection,
   isElectionOpen,
   normalizeEmail,
+  parseVoterRoster,
 } from "./votingRules";
 
 describe("Ballotly election safeguards", () => {
@@ -31,5 +33,18 @@ describe("Ballotly election safeguards", () => {
 
   it("normalizes the voter identity used for email eligibility lookup", () => {
     expect(normalizeEmail("  MEMBER@Example.org ")).toBe("member@example.org");
+  });
+
+  it("requires a meaningful ballot and roster before an election can open", () => {
+    expect(() => assertElectionReadyForLaunch({ candidateCount: 1, voterCount: 2, status: "draft" })).toThrow(/at least two candidates/);
+    expect(() => assertElectionReadyForLaunch({ candidateCount: 2, voterCount: 0, status: "draft" })).toThrow(/at least one voter/);
+    expect(() => assertElectionReadyForLaunch({ candidateCount: 2, voterCount: 1, status: "draft" })).not.toThrow();
+  });
+
+  it("validates a pasted voter roster before any records are imported", () => {
+    expect(parseVoterRoster("member@example.org, Jordan Lee\nsecond@example.org").accepted).toHaveLength(2);
+    const parsed = parseVoterRoster("member@example.org\nMEMBER@example.org\nnot-an-email");
+    expect(parsed.accepted).toHaveLength(1);
+    expect(parsed.rejected).toHaveLength(2);
   });
 });

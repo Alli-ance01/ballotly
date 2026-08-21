@@ -28,6 +28,38 @@ export function canChangeBallotMode(status: ElectionStatus, enrolledVoterCount: 
   return status === "draft" && enrolledVoterCount === 0;
 }
 
+export function assertElectionReadyForLaunch(input: { candidateCount: number; voterCount: number; status: ElectionStatus; opensAt?: Date | null; now?: Date }) {
+  if (input.candidateCount < 2) throw new Error("Add at least two candidates before opening an election.");
+  if (input.voterCount < 1) throw new Error("Enroll at least one voter before opening an election.");
+  if (input.status === "scheduled" && input.opensAt && input.opensAt.getTime() > (input.now ?? new Date()).getTime()) {
+    throw new Error("This election is scheduled to open later. Update its schedule before opening it early.");
+  }
+}
+
+export function parseVoterRoster(raw: string) {
+  const seen = new Set<string>();
+  const accepted: Array<{ email: string; displayName?: string }> = [];
+  const rejected: Array<{ line: number; value: string; reason: string }> = [];
+  raw.split(/\r?\n/).forEach((line, index) => {
+    const value = line.trim();
+    if (!value || /^email\s*(,|$)/i.test(value)) return;
+    const [emailCell, ...nameCells] = value.split(",");
+    const email = normalizeEmail(emailCell ?? "");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      rejected.push({ line: index + 1, value, reason: "Enter one valid email address per line." });
+      return;
+    }
+    if (seen.has(email)) {
+      rejected.push({ line: index + 1, value, reason: "This email appears more than once." });
+      return;
+    }
+    seen.add(email);
+    const displayName = nameCells.join(",").trim();
+    accepted.push({ email, ...(displayName ? { displayName: displayName.slice(0, 160) } : {}) });
+  });
+  return { accepted, rejected };
+}
+
 export function isElectionOpen(
   election: { status: ElectionStatus; opensAt?: Date | null; closesAt?: Date | null },
   now = new Date(),

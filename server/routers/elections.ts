@@ -6,17 +6,22 @@ import {
   createOrUpdateVoterEligibility,
   getElectionById,
   getElectionResults,
+  getElectionRecordExport,
   getOrganizationAccess,
   getVoterEnrollmentCount,
   listElectionsForOrganization,
   listVoterEligibility,
+  listAuditEvents,
+  removeCandidate,
+  removeVoterEligibility,
   setElectionBallotMode,
+  setElectionResultsVisibility,
   setElectionSchedule,
   setElectionStatus,
   writeAuditEvent,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
-import { assertElectionTransition, canChangeBallotMode, electionStatuses, normalizeEmail } from "../votingRules";
+import { assertElectionReadyForLaunch, assertElectionTransition, canChangeBallotMode, electionStatuses, normalizeEmail, parseVoterRoster } from "../votingRules";
 import { canManageOrganization } from "../authorizationRules";
 
 const objectIdInput = z.string().regex(/^[a-f\d]{24}$/i, "Invalid identifier.");
@@ -89,6 +94,10 @@ export const electionRouter = router({
       await requireManager(election.organizationId, ctx.user.id);
       try {
         assertElectionTransition(election.status, input.status);
+        if (input.status === "scheduled" && (!election.opensAt || !election.closesAt)) throw new Error("Set both an opening and closing time before scheduling this election.");
+        if (input.status === "open") {
+          assertElectionReadyForLaunch({ candidateCount: election.candidates.length, voterCount: await getVoterEnrollmentCount(election.id), status: election.status, opensAt: election.opensAt });
+        }
       } catch (error) {
         throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Invalid election lifecycle transition." });
       }
@@ -143,6 +152,18 @@ export const electionRouter = router({
       return candidate;
     }),
 
+  removeCandidate: protectedProcedure
+    .input(z.object({ electionId: objectIdInput, candidateId: objectIdInput }))
+    .mutation(async ({ ctx, input }) => {
+      const election = await getElectionById(input.electionId);
+      if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
+      await requireManager(election.organizationId, ctx.user.id);
+      if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError({ code: "BAD_REQUEST", message: "Candidates are locked once voting opens." });
+      const candidate = await removeCandidate(election.id, input.candidateId);
+      await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "candidate.removed", targetType: "candidate", targetId: candidate.id });
+      return candidate;
+    }),
+
   enrollVoter: protectedProcedure
     .input(z.object({ electionId: objectIdInput, email: z.string().email().max(320), displayName: z.string().trim().max(160).optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -155,6 +176,48 @@ export const electionRouter = router({
       const voter = await createOrUpdateVoterEligibility({ ...input, email: normalizeEmail(input.email) });
       await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.enrolled", targetType: "voter_eligibility", targetId: voter.id });
       return voter;
+    }),
+
+  importVoters: protectedProcedure
+    .input(z.object({ electionId: objectIdInput, roster: z.string().min(1).max(100000) }))
+    .mutation(async ({ ctx, input }) => {
+      const election = await getElectionById(input.electionId);
+      if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
+      await requireManager(election.organizationId, ctx.user.id);
+      if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError({ code: "BAD_REQUEST", message: "Voter eligibility is locked once voting opens." });
+      const parsed = parseVoterRoster(input.roster);
+      if (parsed.rejected.length) throw new TRPCError({ code: "BAD_REQUEST", message: `Correct ${parsed.rejected.length} roster issue${parsed.rejected.length === 1 ? "" : "s"} before importing.` });
+      for (const voter of parsed.accepted) await createOrUpdateVoterEligibility({ electionId: election.id, ...voter });
+      await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.roster_imported", targetType: "election", targetId: election.id, metadata: { count: parsed.accepted.length } });
+      return { imported: parsed.accepted.length };
+    }),
+
+  removeVoter: protectedProcedure
+    .input(z.object({ electionId: objectIdInput, voterId: objectIdInput }))
+    .mutation(async ({ ctx, input }) => {
+      const election = await getElectionById(input.electionId);
+      if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
+      await requireManager(election.organizationId, ctx.user.id);
+      if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError({ code: "BAD_REQUEST", message: "Voter eligibility is locked once voting opens." });
+      try {
+        const voter = await removeVoterEligibility(election.id, input.voterId);
+        await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.removed", targetType: "voter_eligibility", targetId: voter.id });
+        return voter;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to remove this voter." });
+      }
+    }),
+
+  updateResultsVisibility: protectedProcedure
+    .input(z.object({ electionId: objectIdInput, resultsVisibility: z.enum(["after_close", "always", "admins_only"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const election = await getElectionById(input.electionId);
+      if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
+      await requireManager(election.organizationId, ctx.user.id);
+      if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError({ code: "BAD_REQUEST", message: "Results visibility is locked once voting opens." });
+      const updated = await setElectionResultsVisibility(election.id, input.resultsVisibility);
+      await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.results_visibility_changed", targetType: "election", targetId: election.id, metadata: { resultsVisibility: input.resultsVisibility } });
+      return updated;
     }),
 
   listVoters: protectedProcedure
@@ -177,5 +240,25 @@ export const electionRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Results are available after the election closes." });
       }
       return getElectionResults(election.id);
+    }),
+
+  audit: protectedProcedure
+    .input(z.object({ electionId: objectIdInput }))
+    .query(async ({ ctx, input }) => {
+      const election = await getElectionById(input.electionId);
+      if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
+      await requireManager(election.organizationId, ctx.user.id);
+      return listAuditEvents(election.organizationId, election.id);
+    }),
+
+  exportRecord: protectedProcedure
+    .input(z.object({ electionId: objectIdInput }))
+    .query(async ({ ctx, input }) => {
+      const election = await getElectionById(input.electionId);
+      if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
+      await requireManager(election.organizationId, ctx.user.id);
+      const record = await getElectionRecordExport(election.id);
+      await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.record_exported", targetType: "election", targetId: election.id });
+      return record;
     }),
 });
