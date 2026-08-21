@@ -12,7 +12,7 @@ import OrganizationWorkspace from "./OrganizationWorkspace";
 import { workspaceLocationForNewOrganization } from "../onboardingRules";
 
 export default function Workspace() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const search = useSearch();
   const organizationId = new URLSearchParams(search).get("org");
@@ -34,7 +34,7 @@ export default function Workspace() {
   };
 
   return <div className="workspace-shell">
-    <header className="workspace-header"><button className="brand-lockup" onClick={() => setLocation("/")}><span className="logo-mark"><i /><i /><i /></span><span>ballotly</span></button><button className="header-account" onClick={() => setLocation("/account/security")} aria-label="Open account security settings"><span className="account-initial">{user.name?.slice(0, 1).toUpperCase() || "U"}</span><span>{user.name || user.email || "Member"}</span></button></header>
+    <header className="workspace-header"><button className="brand-lockup" onClick={() => setLocation("/")}><span className="logo-mark"><i /><i /><i /></span><span>ballotly</span></button><div className="header-account-actions"><button className="header-account" onClick={() => setLocation("/account/security")} aria-label="Open account security settings"><span className="account-initial">{user.name?.slice(0, 1).toUpperCase() || "U"}</span><span>{user.name || user.email || "Member"}</span></button><button className="header-signout" onClick={async () => { await logout(); setLocation("/"); }}>Sign out</button></div></header>
     <main className="workspace-main">
       <div className="workspace-intro"><div><span className="section-label">YOUR ORGANIZATIONS</span><h1>Good decisions<br /><em>begin here.</em></h1></div><p>Every workspace is a separate home for the people, process, and record of your organization’s elections.</p></div>
       <div className="workspace-toolbar"><span>{organizations.data?.length ?? 0} organization{organizations.data?.length === 1 ? "" : "s"}</span><Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogTrigger asChild><Button className="button-ink"><Plus size={17} /> New organization</Button></DialogTrigger><DialogContent className="ballot-dialog"><DialogHeader><DialogTitle>Create an organization</DialogTitle><DialogDescription>Step 1 of 2. Give your election board a private home. You will set up the board itself next.</DialogDescription></DialogHeader><form className="form-stack" onSubmit={submit}><div><Label htmlFor="org-name">Organization name</Label><Input id="org-name" value={name} onChange={event => { setName(event.target.value); if (!slug) setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")); }} required /></div><div><Label htmlFor="org-slug">Workspace address</Label><div className="slug-field"><Input id="org-slug" value={slug} onChange={event => setSlug(event.target.value)} required /><span>ballotly</span></div></div><div><Label htmlFor="org-description">What is this organization for? <small>Optional</small></Label><Textarea id="org-description" value={description} onChange={event => setDescription(event.target.value)} /></div>{createOrganization.error && <p className="form-error">{createOrganization.error.message}</p>}<Button disabled={createOrganization.isPending} className="button-ink" type="submit">{createOrganization.isPending ? "Creating…" : "Continue to board setup"}<ArrowRight size={17} /></Button></form></DialogContent></Dialog></div>

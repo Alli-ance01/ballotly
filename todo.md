@@ -46,6 +46,6 @@
 - [ ] Add production UX for empty, loading, error, confirmation, and destructive-action states across workflows.
 - [ ] Complete keyboard, screen-reader, mobile, and reduced-motion accessibility refinements.
 - [ ] Add privacy, authorization, lifecycle, and failure-path regression tests with operational documentation.
-- [ ] Verify the hardened release on Vercel and push the final production-oriented build.
+- [x] Verify the hardened release on Vercel and push the final production-oriented build.
 - [x] Expose owner-controlled active-member role changes and removal in the workspace UI.
 - [ ] Add voter invitation status and activation guidance to the election administration UI.
