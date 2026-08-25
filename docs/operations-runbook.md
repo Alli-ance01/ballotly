@@ -27,4 +27,6 @@ Enable MongoDB Atlas continuous cloud backups or scheduled snapshots before usin
 
 ## Email-Dependent Controls
 
-Ballotly currently supports pending organization invitations that activate when the invited email address signs in or creates an account. Automated email delivery, email-address verification, and password-recovery delivery require a configured transactional-email provider and its server-side credentials. Do not claim those controls are active until delivery and verification have been tested in production.
+Ballotly currently supports pending organization invitations that activate when the invited email address signs in or creates an account. Account-email delivery uses the **Hostinger Mail API**, rather than mailbox SMTP. In Vercel, add `MAIL_API_KEY` in both Production and Preview environments and add `MAILBOX_RESOURCE_ID` for the Hostinger mailbox resource that owns the `ballotly@alliancedev.online` alias. Retain `APP_BASE_URL=https://ballotly.alliancedev.online` for future account-action links. Never commit a Mail API key or expose it with a `VITE_` prefix.
+
+The sender should display as `Ballotly <ballotly@alliancedev.online>` and replies should be handled at `hello@alliancedev.online`. Delivery remains disabled until `MAIL_API_KEY` exists. After adding it, redeploy `main` and validate the account-email health check before representing automated verification or recovery email as available.

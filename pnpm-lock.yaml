@@ -151,6 +151,9 @@ importers:
       framer-motion:
         specifier: ^12.23.22
         version: 12.23.22(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      hostinger-mail-api-sdk:
+        specifier: ^1.18.0
+        version: 1.18.0
       input-otp:
         specifier: ^1.4.2
         version: 1.4.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -3194,6 +3197,9 @@ packages:
 
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
+
+  hostinger-mail-api-sdk@1.18.0:
+    resolution: {integrity: sha512-lNcDlnBqDGIt+MNm3MExhU9mqlej2xJnhL4WOfmaSKZTER55SYmqS4L67aKxiRu4bPx81pmlNN0O65zQZFkj6Q==}
 
   html-url-attributes@3.0.1:
     resolution: {integrity: sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==}
@@ -7712,6 +7718,12 @@ snapshots:
       hast-util-parse-selector: 4.0.0
       property-information: 7.1.0
       space-separated-tokens: 2.0.2
+
+  hostinger-mail-api-sdk@1.18.0:
+    dependencies:
+      axios: 1.12.2
+    transitivePeerDependencies:
+      - debug
 
   html-url-attributes@3.0.1: {}
 

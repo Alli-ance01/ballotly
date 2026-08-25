@@ -49,3 +49,7 @@
 - [x] Verify the hardened release on Vercel and push the final production-oriented build.
 - [x] Expose owner-controlled active-member role changes and removal in the workspace UI.
 - [ ] Add voter invitation status and activation guidance to the election administration UI.
+- [ ] Configure Hostinger SMTP delivery from ballotly@alliancedev.online with hello@alliancedev.online as the reply-to address.
+- [ ] Implement and verify email-address confirmation and secure password-recovery flows.
+- [x] Review Boardly’s API-based email implementation and reuse its validated provider pattern for Ballotly.
+- [ ] Replace the rejected Hostinger SMTP path with Hostinger Mail API delivery, then verify it after Vercel credentials are configured.
