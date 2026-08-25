@@ -72,6 +72,18 @@ const loginAttemptSchema = new Schema(
   { timestamps: true },
 );
 
+const accountActionTokenSchema = new Schema(
+  {
+    userId: { type: Schema.Types.ObjectId, required: true, index: true },
+    purpose: { type: String, enum: ["verify_email", "reset_password"], required: true, index: true },
+    tokenHash: { type: String, required: true, unique: true, index: true },
+    expiresAt: { type: Date, required: true, index: true },
+    usedAt: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
+accountActionTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 const electionSchema = new Schema(
   {
     organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
@@ -153,6 +165,7 @@ export const OrganizationModel = mongoose.models.Organization || mongoose.model(
 export const MembershipModel = mongoose.models.OrganizationMembership || mongoose.model("OrganizationMembership", membershipSchema);
 export const OrganizationInvitationModel = mongoose.models.OrganizationInvitation || mongoose.model("OrganizationInvitation", organizationInvitationSchema);
 export const LoginAttemptModel = mongoose.models.LoginAttempt || mongoose.model("LoginAttempt", loginAttemptSchema);
+export const AccountActionTokenModel = mongoose.models.AccountActionToken || mongoose.model("AccountActionToken", accountActionTokenSchema);
 export const ElectionModel = mongoose.models.Election || mongoose.model("Election", electionSchema);
 export const BallotModel = mongoose.models.Ballot || mongoose.model("Ballot", ballotSchema);
 export const CandidateModel = mongoose.models.Candidate || mongoose.model("Candidate", candidateSchema);

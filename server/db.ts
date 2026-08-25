@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
+import { createHash, randomBytes } from "node:crypto";
 import {
+  AccountActionTokenModel,
   AuditEventModel,
   BallotModel,
   CandidateModel,
@@ -95,6 +97,34 @@ export async function getUserWithPasswordByEmail(email: string) {
   const record = await UserModel.findOne({ email }).select("+passwordHash").lean();
   if (!record) return null;
   return { user: asUser(record), passwordHash: record.passwordHash as string | null };
+}
+
+const hashAccountActionToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+export async function createAccountActionToken(input: { userId: string; purpose: "verify_email" | "reset_password"; expiresInMinutes: number }) {
+  await connectMongo();
+  const userId = objectId(input.userId, "User");
+  await AccountActionTokenModel.deleteMany({ userId, purpose: input.purpose, usedAt: null });
+  const token = randomBytes(32).toString("base64url");
+  await AccountActionTokenModel.create({ userId, purpose: input.purpose, tokenHash: hashAccountActionToken(token), expiresAt: new Date(Date.now() + input.expiresInMinutes * 60_000) });
+  return token;
+}
+
+export async function consumeAccountActionToken(input: { token: string; purpose: "verify_email" | "reset_password" }) {
+  await connectMongo();
+  const record = await AccountActionTokenModel.findOneAndUpdate(
+    { tokenHash: hashAccountActionToken(input.token), purpose: input.purpose, usedAt: null, expiresAt: { $gt: new Date() } },
+    { $set: { usedAt: new Date() } },
+    { new: true },
+  ).lean();
+  return record ? asId(record.userId) : null;
+}
+
+export async function verifyNativeUserEmail(userId: string) {
+  await connectMongo();
+  const record = await UserModel.findByIdAndUpdate(objectId(userId, "User"), { $set: { emailVerifiedAt: new Date() } }, { new: true }).lean();
+  if (!record) throw new Error("Account could not be found.");
+  return asUser(record);
 }
 
 export async function registerNativeUser(input: { name: string; email: string; passwordHash: string }) {

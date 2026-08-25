@@ -53,3 +53,9 @@
 - [ ] Implement and verify email-address confirmation and secure password-recovery flows.
 - [x] Review Boardly’s API-based email implementation and reuse its validated provider pattern for Ballotly.
 - [ ] Replace the rejected Hostinger SMTP path with Hostinger Mail API delivery, then verify it after Vercel credentials are configured.
+- [ ] Validate the deployed Hostinger Mail API key and mailbox resource after the user’s Vercel environment update.
+- [ ] Verify the production Mail API configuration after the user-confirmed Vercel redeploy.
+- [ ] Require email verification for newly registered Ballotly accounts using one-time secure links.
+- [ ] Add a secure forgot-password and reset-password flow with short-lived single-use links.
+- [ ] Create a non-destructive review and migration plan for existing unverified or mock accounts.
+- [x] Confirm that the prior Ballotly test database was intentionally cleared before enabling mandatory verification.

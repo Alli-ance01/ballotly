@@ -119,6 +119,9 @@ var requireUser = t.middleware(async (opts) => {
   if (!ctx.user) {
     throw new TRPCError2({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
+  if (!ctx.user.emailVerifiedAt && !opts.path.startsWith("auth.")) {
+    throw new TRPCError2({ code: "FORBIDDEN", message: "Verify your email address before accessing Ballotly workspaces or election activity." });
+  }
   return next({
     ctx: {
       ...ctx,
@@ -132,6 +135,9 @@ var adminProcedure = t.procedure.use(
     const { ctx, next } = opts;
     if (!ctx.user || ctx.user.role !== "admin") {
       throw new TRPCError2({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+    if (!ctx.user.emailVerifiedAt) {
+      throw new TRPCError2({ code: "FORBIDDEN", message: "Verify your email address before accessing Ballotly administration." });
     }
     return next({
       ctx: {
@@ -171,6 +177,7 @@ import { z as z2 } from "zod";
 
 // server/db.ts
 import mongoose2 from "mongoose";
+import { createHash, randomBytes } from "node:crypto";
 
 // server/models.ts
 import mongoose, { Schema } from "mongoose";
@@ -233,6 +240,17 @@ var loginAttemptSchema = new Schema(
   },
   { timestamps: true }
 );
+var accountActionTokenSchema = new Schema(
+  {
+    userId: { type: Schema.Types.ObjectId, required: true, index: true },
+    purpose: { type: String, enum: ["verify_email", "reset_password"], required: true, index: true },
+    tokenHash: { type: String, required: true, unique: true, index: true },
+    expiresAt: { type: Date, required: true, index: true },
+    usedAt: { type: Date, default: null }
+  },
+  { timestamps: true }
+);
+accountActionTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 var electionSchema = new Schema(
   {
     organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
@@ -308,6 +326,7 @@ var OrganizationModel = mongoose.models.Organization || mongoose.model("Organiza
 var MembershipModel = mongoose.models.OrganizationMembership || mongoose.model("OrganizationMembership", membershipSchema);
 var OrganizationInvitationModel = mongoose.models.OrganizationInvitation || mongoose.model("OrganizationInvitation", organizationInvitationSchema);
 var LoginAttemptModel = mongoose.models.LoginAttempt || mongoose.model("LoginAttempt", loginAttemptSchema);
+var AccountActionTokenModel = mongoose.models.AccountActionToken || mongoose.model("AccountActionToken", accountActionTokenSchema);
 var ElectionModel = mongoose.models.Election || mongoose.model("Election", electionSchema);
 var BallotModel = mongoose.models.Ballot || mongoose.model("Ballot", ballotSchema);
 var CandidateModel = mongoose.models.Candidate || mongoose.model("Candidate", candidateSchema);
@@ -446,6 +465,30 @@ async function getUserWithPasswordByEmail(email) {
   const record = await UserModel.findOne({ email }).select("+passwordHash").lean();
   if (!record) return null;
   return { user: asUser(record), passwordHash: record.passwordHash };
+}
+var hashAccountActionToken = (token) => createHash("sha256").update(token).digest("hex");
+async function createAccountActionToken(input) {
+  await connectMongo();
+  const userId = objectId(input.userId, "User");
+  await AccountActionTokenModel.deleteMany({ userId, purpose: input.purpose, usedAt: null });
+  const token = randomBytes(32).toString("base64url");
+  await AccountActionTokenModel.create({ userId, purpose: input.purpose, tokenHash: hashAccountActionToken(token), expiresAt: new Date(Date.now() + input.expiresInMinutes * 6e4) });
+  return token;
+}
+async function consumeAccountActionToken(input) {
+  await connectMongo();
+  const record = await AccountActionTokenModel.findOneAndUpdate(
+    { tokenHash: hashAccountActionToken(input.token), purpose: input.purpose, usedAt: null, expiresAt: { $gt: /* @__PURE__ */ new Date() } },
+    { $set: { usedAt: /* @__PURE__ */ new Date() } },
+    { new: true }
+  ).lean();
+  return record ? asId(record.userId) : null;
+}
+async function verifyNativeUserEmail(userId) {
+  await connectMongo();
+  const record = await UserModel.findByIdAndUpdate(objectId(userId, "User"), { $set: { emailVerifiedAt: /* @__PURE__ */ new Date() } }, { new: true }).lean();
+  if (!record) throw new Error("Account could not be found.");
+  return asUser(record);
 }
 async function registerNativeUser(input) {
   await connectMongo();
@@ -840,6 +883,57 @@ async function writeAuditEvent(input) {
   });
 }
 
+// server/email.ts
+import { AccountApi, Configuration, SendApi } from "hostinger-mail-api-sdk";
+var HOSTINGER_MAIL_API = "https://api.mail.hostinger.com";
+var DEFAULT_MAILBOX_RESOURCE_ID = "ACad23488cc893e90c508568b05252";
+function getMailConfiguration() {
+  const apiKey = process.env.MAIL_API_KEY;
+  return apiKey ? new Configuration({ accessToken: apiKey, basePath: HOSTINGER_MAIL_API }) : null;
+}
+function getMailboxResourceId() {
+  return process.env.MAILBOX_RESOURCE_ID || DEFAULT_MAILBOX_RESOURCE_ID;
+}
+async function sendAccountEmail(message) {
+  const configuration = getMailConfiguration();
+  if (!configuration) return { delivered: false, reason: "MAIL_API_KEY is not configured" };
+  try {
+    const payload = {
+      to: [message.to],
+      cc: [],
+      bcc: [],
+      displayName: "Ballotly",
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      attachments: [],
+      // Hostinger's standalone send endpoint accepts omitted reply/forward fields;
+      // SDK 1.18 types them as required despite the API's established behavior.
+      inReplyTo: void 0,
+      forwardOf: void 0
+    };
+    await new SendApi(configuration).sendEmail(getMailboxResourceId(), payload, {});
+    return { delivered: true };
+  } catch (error) {
+    console.error("[account-email] Hostinger API delivery failed", { message: error instanceof Error ? error.message : "Unknown error" });
+    return { delivered: false, reason: "Hostinger Mail API delivery failed" };
+  }
+}
+var escapeHtml = (value) => value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
+function accountEmailHtml(input) {
+  return `<!doctype html><html><body style="margin:0;background:#f6f0e5;color:#12383e;font-family:Arial,sans-serif"><main style="max-width:560px;margin:32px auto;background:#fffaf0;border:1px solid #d8caaf;padding:36px"><p style="letter-spacing:2px;font-size:11px;font-weight:700;color:#a34d3d">BALLOTLY ACCOUNT SECURITY</p><h1 style="font-family:Georgia,serif;font-weight:400">${input.heading}</h1><p style="line-height:1.6">${input.body}</p><p><a href="${input.actionUrl}" style="display:inline-block;background:#114b54;color:#fff9ec;padding:14px 20px;text-decoration:none;font-weight:bold">${input.actionLabel}</a></p><p style="font-size:12px;line-height:1.5;color:#607277">This secure link expires in ${input.expiry} and can only be used once. If you did not request it, you can safely ignore this message.</p></main></body></html>`;
+}
+async function sendVerificationEmail(input) {
+  const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
+  const actionUrl = `${baseUrl}/account/verify?token=${encodeURIComponent(input.token)}`;
+  return sendAccountEmail({ to: input.email, subject: "Verify your Ballotly email address", text: `Verify your Ballotly account: ${actionUrl}`, html: accountEmailHtml({ heading: "Verify your email", body: `Hi ${escapeHtml(input.name || "there")}, confirm your email address to activate your Ballotly account.`, actionLabel: "Verify email", actionUrl, expiry: "24 hours" }) });
+}
+async function sendPasswordRecoveryEmail(input) {
+  const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
+  const actionUrl = `${baseUrl}/account/reset-password?token=${encodeURIComponent(input.token)}`;
+  return sendAccountEmail({ to: input.email, subject: "Reset your Ballotly password", text: `Reset your Ballotly password: ${actionUrl}`, html: accountEmailHtml({ heading: "Reset your password", body: `Hi ${escapeHtml(input.name || "there")}, use this one-time link to set a new Ballotly password.`, actionLabel: "Reset password", actionUrl, expiry: "30 minutes" }) });
+}
+
 // server/authRules.ts
 function assertPasswordPolicy(password) {
   if (password.length < 12) throw new Error("Use at least 12 characters for your password.");
@@ -905,6 +999,7 @@ var credentialsSchema = z2.object({
 });
 var fallbackPasswordHash = "$2a$12$JYptgJj3KOPjX6j.E72BO.1dBCznshZ66fpW1Jg59KQcOTu3mJ8tO";
 var genericCredentialsError = () => new TRPCError3({ code: "UNAUTHORIZED", message: "Email address or password is incorrect." });
+var accountActionTokenSchema2 = z2.object({ token: z2.string().min(32).max(256) });
 var authRouter = router({
   me: publicProcedure.query(({ ctx }) => ctx.user),
   register: publicProcedure.input(credentialsSchema.extend({ name: z2.string().trim().min(2).max(100) })).mutation(async ({ ctx, input }) => {
@@ -919,6 +1014,8 @@ var authRouter = router({
       const user = await registerNativeUser({ name: input.name, email, passwordHash });
       await acceptPendingOrganizationInvitations(user);
       setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
+      const token = await createAccountActionToken({ userId: user.id, purpose: "verify_email", expiresInMinutes: 24 * 60 });
+      await sendVerificationEmail({ email, name: user.name, token });
       return user;
     } catch (error) {
       if (error instanceof Error && /already/i.test(error.message)) {
@@ -953,6 +1050,40 @@ var authRouter = router({
       throw new TRPCError3({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Password does not meet the security requirements." });
     }
     const user = await changeNativeUserPassword({ userId: ctx.user.id, passwordHash: await bcrypt.hash(input.newPassword, 12) });
+    setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
+    return { success: true };
+  }),
+  resendVerification: protectedProcedure.mutation(async ({ ctx }) => {
+    if (!ctx.user.email) throw new TRPCError3({ code: "BAD_REQUEST", message: "This account does not have an email address." });
+    if (ctx.user.emailVerifiedAt) return { success: true, alreadyVerified: true };
+    const token = await createAccountActionToken({ userId: ctx.user.id, purpose: "verify_email", expiresInMinutes: 24 * 60 });
+    await sendVerificationEmail({ email: ctx.user.email, name: ctx.user.name, token });
+    return { success: true, alreadyVerified: false };
+  }),
+  verifyEmail: publicProcedure.input(accountActionTokenSchema2).mutation(async ({ ctx, input }) => {
+    const userId = await consumeAccountActionToken({ token: input.token, purpose: "verify_email" });
+    if (!userId) throw new TRPCError3({ code: "BAD_REQUEST", message: "This verification link is invalid or has expired." });
+    const user = await verifyNativeUserEmail(userId);
+    setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
+    return { success: true };
+  }),
+  requestPasswordReset: publicProcedure.input(z2.object({ email: z2.string().email().max(320) })).mutation(async ({ input }) => {
+    const account = await getUserWithPasswordByEmail(normalizeAccountEmail(input.email));
+    if (account?.user.email) {
+      const token = await createAccountActionToken({ userId: account.user.id, purpose: "reset_password", expiresInMinutes: 30 });
+      await sendPasswordRecoveryEmail({ email: account.user.email, name: account.user.name, token });
+    }
+    return { success: true };
+  }),
+  resetPassword: publicProcedure.input(accountActionTokenSchema2.extend({ newPassword: z2.string().min(1).max(72) })).mutation(async ({ ctx, input }) => {
+    try {
+      assertPasswordPolicy(input.newPassword);
+    } catch (error) {
+      throw new TRPCError3({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Password does not meet the security requirements." });
+    }
+    const userId = await consumeAccountActionToken({ token: input.token, purpose: "reset_password" });
+    if (!userId) throw new TRPCError3({ code: "BAD_REQUEST", message: "This password reset link is invalid or has expired." });
+    const user = await changeNativeUserPassword({ userId, passwordHash: await bcrypt.hash(input.newPassword, 12) });
     setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
     return { success: true };
   }),

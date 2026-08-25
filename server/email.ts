@@ -53,3 +53,21 @@ export async function sendAccountEmail(message: AccountEmail) {
     return { delivered: false, reason: "Hostinger Mail API delivery failed" as const };
   }
 }
+
+const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!);
+
+function accountEmailHtml(input: { heading: string; body: string; actionLabel: string; actionUrl: string; expiry: string }) {
+  return `<!doctype html><html><body style="margin:0;background:#f6f0e5;color:#12383e;font-family:Arial,sans-serif"><main style="max-width:560px;margin:32px auto;background:#fffaf0;border:1px solid #d8caaf;padding:36px"><p style="letter-spacing:2px;font-size:11px;font-weight:700;color:#a34d3d">BALLOTLY ACCOUNT SECURITY</p><h1 style="font-family:Georgia,serif;font-weight:400">${input.heading}</h1><p style="line-height:1.6">${input.body}</p><p><a href="${input.actionUrl}" style="display:inline-block;background:#114b54;color:#fff9ec;padding:14px 20px;text-decoration:none;font-weight:bold">${input.actionLabel}</a></p><p style="font-size:12px;line-height:1.5;color:#607277">This secure link expires in ${input.expiry} and can only be used once. If you did not request it, you can safely ignore this message.</p></main></body></html>`;
+}
+
+export async function sendVerificationEmail(input: { email: string; name: string | null; token: string }) {
+  const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
+  const actionUrl = `${baseUrl}/account/verify?token=${encodeURIComponent(input.token)}`;
+  return sendAccountEmail({ to: input.email, subject: "Verify your Ballotly email address", text: `Verify your Ballotly account: ${actionUrl}`, html: accountEmailHtml({ heading: "Verify your email", body: `Hi ${escapeHtml(input.name || "there")}, confirm your email address to activate your Ballotly account.`, actionLabel: "Verify email", actionUrl, expiry: "24 hours" }) });
+}
+
+export async function sendPasswordRecoveryEmail(input: { email: string; name: string | null; token: string }) {
+  const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
+  const actionUrl = `${baseUrl}/account/reset-password?token=${encodeURIComponent(input.token)}`;
+  return sendAccountEmail({ to: input.email, subject: "Reset your Ballotly password", text: `Reset your Ballotly password: ${actionUrl}`, html: accountEmailHtml({ heading: "Reset your password", body: `Hi ${escapeHtml(input.name || "there")}, use this one-time link to set a new Ballotly password.`, actionLabel: "Reset password", actionUrl, expiry: "30 minutes" }) });
+}

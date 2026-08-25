@@ -17,6 +17,10 @@ const requireUser = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
+  if (!ctx.user.emailVerifiedAt && !opts.path.startsWith("auth.")) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Verify your email address before accessing Ballotly workspaces or election activity." });
+  }
+
   return next({
     ctx: {
       ...ctx,
@@ -33,6 +37,10 @@ export const adminProcedure = t.procedure.use(
 
     if (!ctx.user || ctx.user.role !== 'admin') {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+
+    if (!ctx.user.emailVerifiedAt) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Verify your email address before accessing Ballotly administration." });
     }
 
     return next({
