@@ -183,14 +183,32 @@ import { createHash, randomBytes } from "node:crypto";
 import mongoose, { Schema } from "mongoose";
 var platformRoles = ["user", "admin"];
 var organizationRoles = ["owner", "admin", "member"];
-var electionStatuses = ["draft", "scheduled", "open", "closed", "archived"];
+var electionStatuses = [
+  "draft",
+  "scheduled",
+  "open",
+  "closed",
+  "archived"
+];
 var ballotModes = ["anonymous", "attributable"];
-var resultVisibilities = ["after_close", "always", "admins_only"];
+var resultVisibilities = [
+  "after_close",
+  "always",
+  "admins_only"
+];
 var userSchema = new Schema(
   {
     openId: { type: String, required: true, unique: true, index: true },
     name: { type: String, default: null },
-    email: { type: String, default: null, unique: true, sparse: true, lowercase: true, trim: true, index: true },
+    email: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      index: true
+    },
     loginMethod: { type: String, default: null },
     passwordHash: { type: String, default: null, select: false },
     role: { type: String, enum: platformRoles, default: "user" },
@@ -203,15 +221,30 @@ var userSchema = new Schema(
 var organizationSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
-    slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      index: true
+    },
     description: { type: String, default: null },
-    createdByUserId: { type: Schema.Types.ObjectId, required: true, index: true }
+    createdByUserId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true
+    }
   },
   { timestamps: true }
 );
 var membershipSchema = new Schema(
   {
-    organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true
+    },
     userId: { type: Schema.Types.ObjectId, required: true, index: true },
     role: { type: String, enum: organizationRoles, default: "member" }
   },
@@ -220,10 +253,25 @@ var membershipSchema = new Schema(
 membershipSchema.index({ organizationId: 1, userId: 1 }, { unique: true });
 var organizationInvitationSchema = new Schema(
   {
-    organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
-    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true
+    },
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+      index: true
+    },
     role: { type: String, enum: ["admin", "member"], default: "member" },
-    status: { type: String, enum: ["pending", "accepted", "revoked", "expired"], default: "pending", index: true },
+    status: {
+      type: String,
+      enum: ["pending", "accepted", "revoked", "expired"],
+      default: "pending",
+      index: true
+    },
     createdByUserId: { type: Schema.Types.ObjectId, required: true },
     acceptedByUserId: { type: Schema.Types.ObjectId, default: null },
     expiresAt: { type: Date, required: true, index: true }
@@ -233,7 +281,14 @@ var organizationInvitationSchema = new Schema(
 organizationInvitationSchema.index({ organizationId: 1, email: 1, status: 1 });
 var loginAttemptSchema = new Schema(
   {
-    email: { type: String, required: true, lowercase: true, trim: true, unique: true, index: true },
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+      unique: true,
+      index: true
+    },
     failureCount: { type: Number, default: 0 },
     windowStartedAt: { type: Date, default: Date.now },
     blockedUntil: { type: Date, default: null }
@@ -243,7 +298,12 @@ var loginAttemptSchema = new Schema(
 var accountActionTokenSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, required: true, index: true },
-    purpose: { type: String, enum: ["verify_email", "reset_password"], required: true, index: true },
+    purpose: {
+      type: String,
+      enum: ["verify_email", "reset_password"],
+      required: true,
+      index: true
+    },
     tokenHash: { type: String, required: true, unique: true, index: true },
     expiresAt: { type: Date, required: true, index: true },
     usedAt: { type: Date, default: null }
@@ -253,14 +313,32 @@ var accountActionTokenSchema = new Schema(
 accountActionTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 var electionSchema = new Schema(
   {
-    organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true
+    },
     createdByUserId: { type: Schema.Types.ObjectId, required: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, default: null },
     ballotPrompt: { type: String, required: true, trim: true },
-    status: { type: String, enum: electionStatuses, default: "draft", index: true },
-    ballotMode: { type: String, enum: ballotModes, default: "anonymous", immutable: false },
-    resultsVisibility: { type: String, enum: resultVisibilities, default: "after_close" },
+    status: {
+      type: String,
+      enum: electionStatuses,
+      default: "draft",
+      index: true
+    },
+    ballotMode: {
+      type: String,
+      enum: ballotModes,
+      default: "anonymous",
+      immutable: false
+    },
+    resultsVisibility: {
+      type: String,
+      enum: resultVisibilities,
+      default: "after_close"
+    },
     opensAt: { type: Date, default: null },
     closesAt: { type: Date, default: null }
   },
@@ -268,8 +346,17 @@ var electionSchema = new Schema(
 );
 var ballotSchema = new Schema(
   {
-    organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
-    electionId: { type: Schema.Types.ObjectId, required: true, unique: true, index: true },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true
+    },
+    electionId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      unique: true,
+      index: true
+    },
     prompt: { type: String, required: true, trim: true },
     mode: { type: String, enum: ballotModes, default: "anonymous" }
   },
@@ -291,8 +378,24 @@ var voterEligibilitySchema = new Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     displayName: { type: String, default: null },
     hasVoted: { type: Boolean, default: false },
-    invitationStatus: { type: String, enum: ["pending", "accepted", "revoked", "expired"], default: "pending", index: true },
-    invitationExpiresAt: { type: Date, default: () => new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14) }
+    invitationStatus: {
+      type: String,
+      enum: ["pending", "accepted", "revoked", "expired"],
+      default: "pending",
+      index: true
+    },
+    invitationExpiresAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14)
+    },
+    invitationTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+      index: true
+    },
+    invitationSentAt: { type: Date, default: null },
+    invitationAcceptedAt: { type: Date, default: null }
   },
   { timestamps: true }
 );
@@ -302,7 +405,12 @@ var voteSchema = new Schema(
     electionId: { type: Schema.Types.ObjectId, required: true, index: true },
     candidateId: { type: Schema.Types.ObjectId, required: true, index: true },
     // Stored only for attributable elections. Anonymous ballots do not persist an identity link.
-    voterEligibilityId: { type: Schema.Types.ObjectId, default: null, unique: true, sparse: true },
+    voterEligibilityId: {
+      type: Schema.Types.ObjectId,
+      default: null,
+      unique: true,
+      sparse: true
+    },
     mode: { type: String, enum: ballotModes, required: true },
     castAt: { type: Date, default: Date.now }
   },
@@ -311,7 +419,11 @@ var voteSchema = new Schema(
 voteSchema.index({ electionId: 1, candidateId: 1 });
 var auditEventSchema = new Schema(
   {
-    organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true
+    },
     actorUserId: { type: Schema.Types.ObjectId, default: null },
     eventType: { type: String, required: true },
     targetType: { type: String, required: true },
@@ -338,9 +450,13 @@ async function connectMongo() {
   if (mongoose.connection.readyState === 1) return mongoose;
   const uri = process.env.MONGODB_URI;
   if (!uri) {
-    throw new Error("MONGODB_URI is not configured. Add a MongoDB Atlas connection string before using protected platform features.");
+    throw new Error(
+      "MONGODB_URI is not configured. Add a MongoDB Atlas connection string before using protected platform features."
+    );
   }
-  connectionPromise ??= mongoose.connect(uri, { serverSelectionTimeoutMS: 7e3 });
+  connectionPromise ??= mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 7e3
+  });
   return connectionPromise;
 }
 
@@ -452,7 +568,8 @@ function asElection(record) {
   };
 }
 function objectId(id, label = "Record") {
-  if (!mongoose2.isValidObjectId(id)) throw new Error(`${label} identifier is invalid.`);
+  if (!mongoose2.isValidObjectId(id))
+    throw new Error(`${label} identifier is invalid.`);
   return new mongoose2.Types.ObjectId(id);
 }
 async function getUserById(id) {
@@ -464,21 +581,38 @@ async function getUserWithPasswordByEmail(email) {
   await connectMongo();
   const record = await UserModel.findOne({ email }).select("+passwordHash").lean();
   if (!record) return null;
-  return { user: asUser(record), passwordHash: record.passwordHash };
+  return {
+    user: asUser(record),
+    passwordHash: record.passwordHash
+  };
 }
 var hashAccountActionToken = (token) => createHash("sha256").update(token).digest("hex");
 async function createAccountActionToken(input) {
   await connectMongo();
   const userId = objectId(input.userId, "User");
-  await AccountActionTokenModel.deleteMany({ userId, purpose: input.purpose, usedAt: null });
+  await AccountActionTokenModel.deleteMany({
+    userId,
+    purpose: input.purpose,
+    usedAt: null
+  });
   const token = randomBytes(32).toString("base64url");
-  await AccountActionTokenModel.create({ userId, purpose: input.purpose, tokenHash: hashAccountActionToken(token), expiresAt: new Date(Date.now() + input.expiresInMinutes * 6e4) });
+  await AccountActionTokenModel.create({
+    userId,
+    purpose: input.purpose,
+    tokenHash: hashAccountActionToken(token),
+    expiresAt: new Date(Date.now() + input.expiresInMinutes * 6e4)
+  });
   return token;
 }
 async function consumeAccountActionToken(input) {
   await connectMongo();
   const record = await AccountActionTokenModel.findOneAndUpdate(
-    { tokenHash: hashAccountActionToken(input.token), purpose: input.purpose, usedAt: null, expiresAt: { $gt: /* @__PURE__ */ new Date() } },
+    {
+      tokenHash: hashAccountActionToken(input.token),
+      purpose: input.purpose,
+      usedAt: null,
+      expiresAt: { $gt: /* @__PURE__ */ new Date() }
+    },
     { $set: { usedAt: /* @__PURE__ */ new Date() } },
     { new: true }
   ).lean();
@@ -486,7 +620,11 @@ async function consumeAccountActionToken(input) {
 }
 async function verifyNativeUserEmail(userId) {
   await connectMongo();
-  const record = await UserModel.findByIdAndUpdate(objectId(userId, "User"), { $set: { emailVerifiedAt: /* @__PURE__ */ new Date() } }, { new: true }).lean();
+  const record = await UserModel.findByIdAndUpdate(
+    objectId(userId, "User"),
+    { $set: { emailVerifiedAt: /* @__PURE__ */ new Date() } },
+    { new: true }
+  ).lean();
   if (!record) throw new Error("Account could not be found.");
   return asUser(record);
 }
@@ -511,20 +649,32 @@ var LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1e3;
 var LOGIN_MAX_FAILURES = 5;
 async function isLoginTemporarilyBlocked(email) {
   await connectMongo();
-  const attempt = await LoginAttemptModel.findOne({ email: normalizeEmail(email) }).lean();
-  return Boolean(attempt?.blockedUntil && attempt.blockedUntil.getTime() > Date.now());
+  const attempt = await LoginAttemptModel.findOne({
+    email: normalizeEmail(email)
+  }).lean();
+  return Boolean(
+    attempt?.blockedUntil && attempt.blockedUntil.getTime() > Date.now()
+  );
 }
 async function recordLoginFailure(email) {
   await connectMongo();
   const normalized = normalizeEmail(email);
   const now = /* @__PURE__ */ new Date();
   const attempt = await LoginAttemptModel.findOne({ email: normalized });
-  const withinWindow = Boolean(attempt && now.getTime() - attempt.windowStartedAt.getTime() < LOGIN_FAILURE_WINDOW_MS);
+  const withinWindow = Boolean(
+    attempt && now.getTime() - attempt.windowStartedAt.getTime() < LOGIN_FAILURE_WINDOW_MS
+  );
   const failureCount = withinWindow ? (attempt?.failureCount ?? 0) + 1 : 1;
   const blockedUntil = failureCount >= LOGIN_MAX_FAILURES ? new Date(now.getTime() + LOGIN_FAILURE_WINDOW_MS) : null;
   await LoginAttemptModel.findOneAndUpdate(
     { email: normalized },
-    { $set: { failureCount, windowStartedAt: withinWindow ? attempt.windowStartedAt : now, blockedUntil } },
+    {
+      $set: {
+        failureCount,
+        windowStartedAt: withinWindow ? attempt.windowStartedAt : now,
+        blockedUntil
+      }
+    },
     { upsert: true }
   );
 }
@@ -536,7 +686,10 @@ async function changeNativeUserPassword(input) {
   await connectMongo();
   const user = await UserModel.findByIdAndUpdate(
     objectId(input.userId, "User"),
-    { $set: { passwordHash: input.passwordHash, lastSignedIn: /* @__PURE__ */ new Date() }, $inc: { sessionVersion: 1 } },
+    {
+      $set: { passwordHash: input.passwordHash, lastSignedIn: /* @__PURE__ */ new Date() },
+      $inc: { sessionVersion: 1 }
+    },
     { new: true }
   ).lean();
   if (!user) throw new Error("Account not found.");
@@ -547,12 +700,28 @@ async function acceptPendingOrganizationInvitations(user) {
   await connectMongo();
   const now = /* @__PURE__ */ new Date();
   const email = normalizeEmail(user.email);
-  await OrganizationInvitationModel.updateMany({ email, status: "pending", expiresAt: { $lte: now } }, { $set: { status: "expired" } });
-  const invitations = await OrganizationInvitationModel.find({ email, status: "pending", expiresAt: { $gt: now } });
+  await OrganizationInvitationModel.updateMany(
+    { email, status: "pending", expiresAt: { $lte: now } },
+    { $set: { status: "expired" } }
+  );
+  const invitations = await OrganizationInvitationModel.find({
+    email,
+    status: "pending",
+    expiresAt: { $gt: now }
+  });
   for (const invitation of invitations) {
     await MembershipModel.findOneAndUpdate(
-      { organizationId: invitation.organizationId, userId: objectId(user.id, "User") },
-      { $setOnInsert: { organizationId: invitation.organizationId, userId: objectId(user.id, "User"), role: invitation.role } },
+      {
+        organizationId: invitation.organizationId,
+        userId: objectId(user.id, "User")
+      },
+      {
+        $setOnInsert: {
+          organizationId: invitation.organizationId,
+          userId: objectId(user.id, "User"),
+          role: invitation.role
+        }
+      },
       { upsert: true }
     );
     invitation.status = "accepted";
@@ -563,10 +732,18 @@ async function acceptPendingOrganizationInvitations(user) {
 }
 async function listOrganizationsForUser(userId) {
   await connectMongo();
-  const memberships = await MembershipModel.find({ userId: objectId(userId, "User") }).sort({ updatedAt: -1 }).lean();
-  const organizationIds = memberships.map((membership) => membership.organizationId);
-  const organizations = await OrganizationModel.find({ _id: { $in: organizationIds } }).sort({ updatedAt: -1 }).lean();
-  const membershipByOrganization = new Map(memberships.map((item) => [asId(item.organizationId), item]));
+  const memberships = await MembershipModel.find({
+    userId: objectId(userId, "User")
+  }).sort({ updatedAt: -1 }).lean();
+  const organizationIds = memberships.map(
+    (membership) => membership.organizationId
+  );
+  const organizations = await OrganizationModel.find({
+    _id: { $in: organizationIds }
+  }).sort({ updatedAt: -1 }).lean();
+  const membershipByOrganization = new Map(
+    memberships.map((item) => [asId(item.organizationId), item])
+  );
   return organizations.map((organization) => ({
     organization: asOrganization(organization),
     membership: {
@@ -578,11 +755,17 @@ async function listOrganizationsForUser(userId) {
 async function listPlatformOrganizations() {
   await connectMongo();
   const organizations = await OrganizationModel.find().sort({ createdAt: -1 }).lean();
-  return Promise.all(organizations.map(async (organization) => ({
-    organization: asOrganization(organization),
-    electionCount: await ElectionModel.countDocuments({ organizationId: organization._id }),
-    memberCount: await MembershipModel.countDocuments({ organizationId: organization._id })
-  })));
+  return Promise.all(
+    organizations.map(async (organization) => ({
+      organization: asOrganization(organization),
+      electionCount: await ElectionModel.countDocuments({
+        organizationId: organization._id
+      }),
+      memberCount: await MembershipModel.countDocuments({
+        organizationId: organization._id
+      })
+    }))
+  );
 }
 async function createOrganization(input) {
   await connectMongo();
@@ -591,10 +774,26 @@ async function createOrganization(input) {
     let created;
     await session.withTransaction(async () => {
       const [organization] = await OrganizationModel.create(
-        [{ name: input.name, slug: input.slug, description: input.description || null, createdByUserId: objectId(input.createdByUserId, "User") }],
+        [
+          {
+            name: input.name,
+            slug: input.slug,
+            description: input.description || null,
+            createdByUserId: objectId(input.createdByUserId, "User")
+          }
+        ],
         { session }
       );
-      await MembershipModel.create([{ organizationId: organization._id, userId: objectId(input.createdByUserId, "User"), role: "owner" }], { session });
+      await MembershipModel.create(
+        [
+          {
+            organizationId: organization._id,
+            userId: objectId(input.createdByUserId, "User"),
+            role: "owner"
+          }
+        ],
+        { session }
+      );
       created = organization.toObject();
     });
     return asOrganization(created);
@@ -606,60 +805,130 @@ async function getOrganizationAccess(organizationId, userId) {
   await connectMongo();
   const [organization, membership] = await Promise.all([
     OrganizationModel.findById(objectId(organizationId, "Organization")).lean(),
-    MembershipModel.findOne({ organizationId: objectId(organizationId, "Organization"), userId: objectId(userId, "User") }).lean()
+    MembershipModel.findOne({
+      organizationId: objectId(organizationId, "Organization"),
+      userId: objectId(userId, "User")
+    }).lean()
   ]);
   if (!organization || !membership) return null;
   return {
     organization: asOrganization(organization),
-    membership: { id: asId(membership._id), role: membership.role }
+    membership: {
+      id: asId(membership._id),
+      role: membership.role
+    }
   };
 }
 async function listOrganizationMembers(organizationId) {
   await connectMongo();
-  const memberships = await MembershipModel.find({ organizationId: objectId(organizationId, "Organization") }).sort({ createdAt: 1 }).lean();
-  const users = await UserModel.find({ _id: { $in: memberships.map((membership) => membership.userId) } }).lean();
+  const memberships = await MembershipModel.find({
+    organizationId: objectId(organizationId, "Organization")
+  }).sort({ createdAt: 1 }).lean();
+  const users = await UserModel.find({
+    _id: { $in: memberships.map((membership) => membership.userId) }
+  }).lean();
   const userById = new Map(users.map((user) => [asId(user._id), user]));
   return memberships.map((membership) => {
     const user = userById.get(asId(membership.userId));
-    return { id: asId(membership._id), userId: asId(membership.userId), role: membership.role, name: user?.name ?? null, email: user?.email ?? null };
+    return {
+      id: asId(membership._id),
+      userId: asId(membership.userId),
+      role: membership.role,
+      name: user?.name ?? null,
+      email: user?.email ?? null
+    };
   });
 }
 async function assignOrganizationRole(input) {
   await connectMongo();
-  const user = await UserModel.findOne({ email: normalizeEmail(input.email) }).lean();
-  if (!user) throw new Error("That person must sign in to Ballotly once before they can be added to this workspace.");
+  const user = await UserModel.findOne({
+    email: normalizeEmail(input.email)
+  }).lean();
+  if (!user)
+    throw new Error(
+      "That person must sign in to Ballotly once before they can be added to this workspace."
+    );
   const membership = await MembershipModel.findOneAndUpdate(
-    { organizationId: objectId(input.organizationId, "Organization"), userId: user._id },
-    { $set: { role: input.role }, $setOnInsert: { organizationId: objectId(input.organizationId, "Organization"), userId: user._id } },
+    {
+      organizationId: objectId(input.organizationId, "Organization"),
+      userId: user._id
+    },
+    {
+      $set: { role: input.role },
+      $setOnInsert: {
+        organizationId: objectId(input.organizationId, "Organization"),
+        userId: user._id
+      }
+    },
     { upsert: true, new: true }
   ).lean();
-  return { id: asId(membership._id), userId: asId(user._id), role: membership.role, name: user.name ?? null, email: user.email ?? null };
+  return {
+    id: asId(membership._id),
+    userId: asId(user._id),
+    role: membership.role,
+    name: user.name ?? null,
+    email: user.email ?? null
+  };
 }
 async function createOrganizationInvitation(input) {
   await connectMongo();
   const email = normalizeEmail(input.email);
   const invitation = await OrganizationInvitationModel.findOneAndUpdate(
-    { organizationId: objectId(input.organizationId, "Organization"), email, status: "pending" },
     {
-      $set: { role: input.role, createdByUserId: objectId(input.createdByUserId, "User"), expiresAt: new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14) },
-      $setOnInsert: { organizationId: objectId(input.organizationId, "Organization"), email, status: "pending" }
+      organizationId: objectId(input.organizationId, "Organization"),
+      email,
+      status: "pending"
+    },
+    {
+      $set: {
+        role: input.role,
+        createdByUserId: objectId(input.createdByUserId, "User"),
+        expiresAt: new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14)
+      },
+      $setOnInsert: {
+        organizationId: objectId(input.organizationId, "Organization"),
+        email,
+        status: "pending"
+      }
     },
     { upsert: true, new: true }
   ).lean();
-  return { id: asId(invitation._id), email: invitation.email, role: invitation.role, status: invitation.status, expiresAt: invitation.expiresAt };
+  return {
+    id: asId(invitation._id),
+    email: invitation.email,
+    role: invitation.role,
+    status: invitation.status,
+    expiresAt: invitation.expiresAt
+  };
 }
 async function listOrganizationInvitations(organizationId) {
   await connectMongo();
   const now = /* @__PURE__ */ new Date();
   const id = objectId(organizationId, "Organization");
-  await OrganizationInvitationModel.updateMany({ organizationId: id, status: "pending", expiresAt: { $lte: now } }, { $set: { status: "expired" } });
-  const invitations = await OrganizationInvitationModel.find({ organizationId: id }).sort({ createdAt: -1 }).lean();
-  return invitations.map((invitation) => ({ id: asId(invitation._id), email: invitation.email, role: invitation.role, status: invitation.status, expiresAt: invitation.expiresAt, createdAt: invitation.createdAt }));
+  await OrganizationInvitationModel.updateMany(
+    { organizationId: id, status: "pending", expiresAt: { $lte: now } },
+    { $set: { status: "expired" } }
+  );
+  const invitations = await OrganizationInvitationModel.find({
+    organizationId: id
+  }).sort({ createdAt: -1 }).lean();
+  return invitations.map((invitation) => ({
+    id: asId(invitation._id),
+    email: invitation.email,
+    role: invitation.role,
+    status: invitation.status,
+    expiresAt: invitation.expiresAt,
+    createdAt: invitation.createdAt
+  }));
 }
 async function revokeOrganizationInvitation(organizationId, invitationId) {
   await connectMongo();
   const invitation = await OrganizationInvitationModel.findOneAndUpdate(
-    { _id: objectId(invitationId, "Invitation"), organizationId: objectId(organizationId, "Organization"), status: "pending" },
+    {
+      _id: objectId(invitationId, "Invitation"),
+      organizationId: objectId(organizationId, "Organization"),
+      status: "pending"
+    },
     { $set: { status: "revoked" } },
     { new: true }
   ).lean();
@@ -668,9 +937,15 @@ async function revokeOrganizationInvitation(organizationId, invitationId) {
 }
 async function removeOrganizationMember(input) {
   await connectMongo();
-  const membership = await MembershipModel.findOne({ _id: objectId(input.membershipId, "Membership"), organizationId: objectId(input.organizationId, "Organization") }).lean();
+  const membership = await MembershipModel.findOne({
+    _id: objectId(input.membershipId, "Membership"),
+    organizationId: objectId(input.organizationId, "Organization")
+  }).lean();
   if (!membership) throw new Error("Membership not found.");
-  if (membership.role === "owner" || asId(membership.userId) === input.protectedUserId) throw new Error("The organization owner cannot be removed from this workspace.");
+  if (membership.role === "owner" || asId(membership.userId) === input.protectedUserId)
+    throw new Error(
+      "The organization owner cannot be removed from this workspace."
+    );
   await MembershipModel.deleteOne({ _id: membership._id });
   return { id: asId(membership._id) };
 }
@@ -697,15 +972,23 @@ async function createElection(input) {
 }
 async function listElectionsForOrganization(organizationId) {
   await connectMongo();
-  const elections = await ElectionModel.find({ organizationId: objectId(organizationId, "Organization") }).sort({ updatedAt: -1 }).lean();
+  const elections = await ElectionModel.find({
+    organizationId: objectId(organizationId, "Organization")
+  }).sort({ updatedAt: -1 }).lean();
   return elections.map(asElection);
 }
 async function getElectionById(electionId) {
   await connectMongo();
   const id = objectId(electionId, "Election");
   const now = /* @__PURE__ */ new Date();
-  await ElectionModel.updateOne({ _id: id, status: "scheduled", opensAt: { $lte: now } }, { $set: { status: "open" } });
-  await ElectionModel.updateOne({ _id: id, status: "open", closesAt: { $lte: now } }, { $set: { status: "closed" } });
+  await ElectionModel.updateOne(
+    { _id: id, status: "scheduled", opensAt: { $lte: now } },
+    { $set: { status: "open" } }
+  );
+  await ElectionModel.updateOne(
+    { _id: id, status: "open", closesAt: { $lte: now } },
+    { $set: { status: "closed" } }
+  );
   const election = await ElectionModel.findById(id).lean();
   if (!election) return null;
   const [candidates, ballot] = await Promise.all([
@@ -726,7 +1009,9 @@ async function getElectionById(electionId) {
 }
 async function setElectionStatus(electionId, status) {
   await connectMongo();
-  await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), { $set: { status } });
+  await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), {
+    $set: { status }
+  });
   return getElectionById(electionId);
 }
 async function setElectionBallotMode(electionId, ballotMode) {
@@ -734,63 +1019,270 @@ async function setElectionBallotMode(electionId, ballotMode) {
   const id = objectId(electionId, "Election");
   await Promise.all([
     ElectionModel.findByIdAndUpdate(id, { $set: { ballotMode } }),
-    BallotModel.findOneAndUpdate({ electionId: id }, { $set: { mode: ballotMode } })
+    BallotModel.findOneAndUpdate(
+      { electionId: id },
+      { $set: { mode: ballotMode } }
+    )
   ]);
   return getElectionById(electionId);
 }
 async function setElectionSchedule(electionId, opensAt, closesAt) {
   await connectMongo();
-  await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), { $set: { opensAt, closesAt } });
+  await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), {
+    $set: { opensAt, closesAt }
+  });
   return getElectionById(electionId);
 }
 async function setElectionResultsVisibility(electionId, resultsVisibility) {
   await connectMongo();
-  await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), { $set: { resultsVisibility } });
+  await ElectionModel.findByIdAndUpdate(objectId(electionId, "Election"), {
+    $set: { resultsVisibility }
+  });
   return getElectionById(electionId);
 }
 async function addCandidate(input) {
   await connectMongo();
-  const last = await CandidateModel.findOne({ electionId: objectId(input.electionId, "Election") }).sort({ sortOrder: -1 }).lean();
+  const last = await CandidateModel.findOne({
+    electionId: objectId(input.electionId, "Election")
+  }).sort({ sortOrder: -1 }).lean();
   const candidate = await CandidateModel.create({
     electionId: objectId(input.electionId, "Election"),
     name: input.name,
     biography: input.biography || null,
     sortOrder: (last?.sortOrder ?? -1) + 1
   });
-  return { id: asId(candidate._id), name: candidate.name, biography: candidate.biography ?? null, sortOrder: candidate.sortOrder };
+  return {
+    id: asId(candidate._id),
+    name: candidate.name,
+    biography: candidate.biography ?? null,
+    sortOrder: candidate.sortOrder
+  };
 }
 async function removeCandidate(electionId, candidateId) {
   await connectMongo();
-  const candidate = await CandidateModel.findOneAndDelete({ _id: objectId(candidateId, "Candidate"), electionId: objectId(electionId, "Election") }).lean();
+  const candidate = await CandidateModel.findOneAndDelete({
+    _id: objectId(candidateId, "Candidate"),
+    electionId: objectId(electionId, "Election")
+  }).lean();
   if (!candidate) throw new Error("Candidate not found on this election.");
   return { id: asId(candidate._id) };
 }
 async function createOrUpdateVoterEligibility(input) {
   await connectMongo();
   const voter = await VoterEligibilityModel.findOneAndUpdate(
-    { electionId: objectId(input.electionId, "Election"), email: normalizeEmail(input.email) },
-    { $set: { displayName: input.displayName || null, invitationStatus: "pending", invitationExpiresAt: new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14) }, $setOnInsert: { electionId: objectId(input.electionId, "Election"), email: normalizeEmail(input.email) } },
+    {
+      electionId: objectId(input.electionId, "Election"),
+      email: normalizeEmail(input.email)
+    },
+    {
+      $set: {
+        displayName: input.displayName || null,
+        invitationStatus: "pending",
+        invitationExpiresAt: new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14)
+      },
+      $setOnInsert: {
+        electionId: objectId(input.electionId, "Election"),
+        email: normalizeEmail(input.email)
+      }
+    },
     { upsert: true, new: true }
   ).lean();
-  return { id: asId(voter._id), email: voter.email, displayName: voter.displayName ?? null, hasVoted: voter.hasVoted, invitationStatus: voter.invitationStatus };
+  return {
+    id: asId(voter._id),
+    email: voter.email,
+    displayName: voter.displayName ?? null,
+    hasVoted: voter.hasVoted,
+    invitationStatus: voter.invitationStatus
+  };
+}
+async function getElectionReadiness(electionId) {
+  await connectMongo();
+  const election = await getElectionById(electionId);
+  if (!election) return null;
+  const voters = await listVoterEligibility(electionId);
+  const activeVoters = voters.filter(
+    (voter) => voter.invitationStatus === "accepted" || voter.activationStatus === "active"
+  ).length;
+  const pendingVoters = voters.filter(
+    (voter) => voter.invitationStatus === "pending" && voter.activationStatus !== "active"
+  ).length;
+  const expiredVoters = voters.filter(
+    (voter) => voter.invitationStatus === "expired"
+  ).length;
+  const decisionComplete = election.title.trim().length >= 3 && election.ballotPrompt.trim().length >= 3 && election.candidates.length >= 2;
+  const rulesComplete = Boolean(
+    election.ballotMode && election.resultsVisibility && election.closesAt && (!election.opensAt || election.closesAt > election.opensAt)
+  );
+  const votersComplete = voters.length > 0;
+  const reviewComplete = decisionComplete && rulesComplete && votersComplete;
+  return {
+    electionId,
+    status: election.status,
+    canEdit: election.status === "draft" || election.status === "scheduled",
+    canOpen: decisionComplete && votersComplete && (election.status === "draft" || election.status === "scheduled"),
+    completed: reviewComplete,
+    counts: {
+      candidates: election.candidates.length,
+      voters: voters.length,
+      activeVoters,
+      pendingVoters,
+      expiredVoters
+    },
+    steps: [
+      {
+        key: "decision",
+        label: "Define the decision",
+        complete: decisionComplete,
+        summary: decisionComplete ? `${election.candidates.length} candidates ready` : "Add the question and at least two candidates"
+      },
+      {
+        key: "rules",
+        label: "Set the rules",
+        complete: rulesComplete,
+        summary: rulesComplete ? `${election.ballotMode} ballot \xB7 ${election.resultsVisibility.replaceAll("_", " ")}` : "Choose privacy, schedule, and result visibility"
+      },
+      {
+        key: "voters",
+        label: "Prepare voters",
+        complete: votersComplete,
+        summary: votersComplete ? `${voters.length} eligible \xB7 ${pendingVoters} awaiting activation` : "Enroll at least one voter"
+      },
+      {
+        key: "review",
+        label: "Review and open",
+        complete: reviewComplete,
+        summary: reviewComplete ? "Ready for final confirmation" : "Complete the steps above"
+      }
+    ]
+  };
 }
 async function listVoterEligibility(electionId) {
   await connectMongo();
   const now = /* @__PURE__ */ new Date();
   const electionObjectId = objectId(electionId, "Election");
-  await VoterEligibilityModel.updateMany({ electionId: electionObjectId, invitationStatus: "pending", invitationExpiresAt: { $lte: now } }, { $set: { invitationStatus: "expired" } });
-  const voters = await VoterEligibilityModel.find({ electionId: electionObjectId }).sort({ email: 1 }).lean();
-  return voters.map((voter) => ({ id: asId(voter._id), email: voter.email, displayName: voter.displayName ?? null, hasVoted: voter.hasVoted, invitationStatus: voter.invitationStatus, activationStatus: voter.userId ? "active" : "awaiting_account", createdAt: voter.createdAt }));
+  await VoterEligibilityModel.updateMany(
+    {
+      electionId: electionObjectId,
+      invitationStatus: "pending",
+      invitationExpiresAt: { $lte: now }
+    },
+    { $set: { invitationStatus: "expired" } }
+  );
+  const voters = await VoterEligibilityModel.find({
+    electionId: electionObjectId
+  }).sort({ email: 1 }).lean();
+  return voters.map((voter) => ({
+    id: asId(voter._id),
+    email: voter.email,
+    displayName: voter.displayName ?? null,
+    hasVoted: voter.hasVoted,
+    invitationStatus: voter.invitationStatus,
+    activationStatus: voter.userId ? "active" : "awaiting_account",
+    createdAt: voter.createdAt
+  }));
+}
+async function createElectionInvitation(electionId, voterId) {
+  await connectMongo();
+  const token = randomBytes(32).toString("base64url");
+  const voter = await VoterEligibilityModel.findOneAndUpdate(
+    {
+      _id: objectId(voterId, "Voter"),
+      electionId: objectId(electionId, "Election"),
+      invitationStatus: { $ne: "revoked" }
+    },
+    {
+      $set: {
+        invitationTokenHash: createHash("sha256").update(token).digest("hex"),
+        invitationSentAt: /* @__PURE__ */ new Date(),
+        invitationExpiresAt: new Date(Date.now() + 1e3 * 60 * 60 * 24 * 14),
+        invitationStatus: "pending"
+      }
+    },
+    { new: true }
+  ).lean();
+  if (!voter) throw new Error("This voter is not available for invitation.");
+  return {
+    token,
+    voter: {
+      id: asId(voter._id),
+      email: voter.email,
+      displayName: voter.displayName ?? null
+    }
+  };
+}
+async function getElectionInvitation(token) {
+  await connectMongo();
+  const voter = await VoterEligibilityModel.findOne({
+    invitationTokenHash: createHash("sha256").update(token).digest("hex")
+  }).select("+invitationTokenHash").lean();
+  if (!voter) return null;
+  const election = await getElectionById(asId(voter.electionId));
+  if (!election) return null;
+  return {
+    voterId: asId(voter._id),
+    election,
+    email: voter.email,
+    displayName: voter.displayName ?? null,
+    status: voter.invitationStatus,
+    expiresAt: voter.invitationExpiresAt
+  };
+}
+async function claimElectionInvitation(token, user) {
+  const invitation = await getElectionInvitation(token);
+  if (!invitation)
+    throw new Error("This election invitation is invalid or has expired.");
+  if (invitation.status === "revoked" || invitation.expiresAt && invitation.expiresAt.getTime() <= Date.now())
+    throw new Error("This election invitation is invalid or has expired.");
+  if (!user.email || normalizeEmail(user.email) !== normalizeEmail(invitation.email))
+    throw new Error(
+      "Sign in with the email address that received this election invitation."
+    );
+  const claimed = await VoterEligibilityModel.updateOne(
+    {
+      _id: objectId(invitation.voterId, "Voter"),
+      $or: [{ userId: null }, { userId: objectId(user.id, "User") }]
+    },
+    {
+      $set: {
+        userId: objectId(user.id, "User"),
+        invitationStatus: "accepted",
+        invitationAcceptedAt: /* @__PURE__ */ new Date(),
+        invitationTokenHash: null
+      }
+    }
+  );
+  if (!claimed.matchedCount)
+    throw new Error(
+      "This election invitation has already been claimed by another account."
+    );
+  return { electionId: invitation.election.id, voterId: invitation.voterId };
 }
 async function removeVoterEligibility(electionId, voterId) {
   await connectMongo();
-  const voter = await VoterEligibilityModel.findOneAndUpdate({ _id: objectId(voterId, "Voter"), electionId: objectId(electionId, "Election"), hasVoted: false }, { $set: { invitationStatus: "revoked" } }, { new: true }).lean();
-  if (!voter) throw new Error("This voter cannot be removed because they have already voted or are not in this election.");
+  const voter = await VoterEligibilityModel.findOneAndUpdate(
+    {
+      _id: objectId(voterId, "Voter"),
+      electionId: objectId(electionId, "Election"),
+      hasVoted: false
+    },
+    { $set: { invitationStatus: "revoked" } },
+    { new: true }
+  ).lean();
+  if (!voter)
+    throw new Error(
+      "This voter cannot be removed because they have already voted or are not in this election."
+    );
   return { id: asId(voter._id) };
 }
 async function getVoterEnrollmentCount(electionId) {
   await connectMongo();
-  return VoterEligibilityModel.countDocuments({ electionId: objectId(electionId, "Election"), $or: [{ invitationStatus: { $in: ["pending", "accepted"] } }, { invitationStatus: { $exists: false } }] });
+  return VoterEligibilityModel.countDocuments({
+    electionId: objectId(electionId, "Election"),
+    $or: [
+      { invitationStatus: { $in: ["pending", "accepted"] } },
+      { invitationStatus: { $exists: false } }
+    ]
+  });
 }
 async function getVotingEligibility(input) {
   await connectMongo();
@@ -798,10 +1290,24 @@ async function getVotingEligibility(input) {
   const userId = objectId(input.userId, "User");
   const conditions = [{ userId }];
   if (input.email) conditions.push({ email: normalizeEmail(input.email) });
-  const voter = await VoterEligibilityModel.findOne({ electionId, $and: [{ $or: [{ invitationStatus: { $in: ["pending", "accepted"] } }, { invitationStatus: { $exists: false } }] }, { $or: conditions }] }).lean();
+  const voter = await VoterEligibilityModel.findOne({
+    electionId,
+    $and: [
+      {
+        $or: [
+          { invitationStatus: { $in: ["pending", "accepted"] } },
+          { invitationStatus: { $exists: false } }
+        ]
+      },
+      { $or: conditions }
+    ]
+  }).lean();
   if (!voter) return null;
   if (!voter.userId) {
-    await VoterEligibilityModel.updateOne({ _id: voter._id, userId: null }, { $set: { userId, invitationStatus: "accepted" } });
+    await VoterEligibilityModel.updateOne(
+      { _id: voter._id, userId: null },
+      { $set: { userId, invitationStatus: "accepted" } }
+    );
     voter.userId = userId;
     voter.invitationStatus = "accepted";
   }
@@ -812,8 +1318,12 @@ async function castVote(input) {
   const electionId = objectId(input.electionId, "Election");
   const candidateId = objectId(input.candidateId, "Candidate");
   const eligibilityId = objectId(input.voterEligibilityId, "Eligibility");
-  const candidate = await CandidateModel.exists({ _id: candidateId, electionId });
-  if (!candidate) throw new Error("Candidate does not belong to this election.");
+  const candidate = await CandidateModel.exists({
+    _id: candidateId,
+    electionId
+  });
+  if (!candidate)
+    throw new Error("Candidate does not belong to this election.");
   const session = await mongoose2.startSession();
   try {
     await session.withTransaction(async () => {
@@ -822,14 +1332,19 @@ async function castVote(input) {
         { $set: { hasVoted: true } },
         { new: true, session }
       );
-      if (!claimed) throw new Error("A ballot has already been submitted for this election.");
+      if (!claimed)
+        throw new Error(
+          "A ballot has already been submitted for this election."
+        );
       await VoteModel.create(
-        [{
-          electionId,
-          candidateId,
-          mode: input.mode,
-          ...input.mode === "attributable" ? { voterEligibilityId: eligibilityId } : {}
-        }],
+        [
+          {
+            electionId,
+            candidateId,
+            mode: input.mode,
+            ...input.mode === "attributable" ? { voterEligibilityId: eligibilityId } : {}
+          }
+        ],
         { session }
       );
     });
@@ -843,23 +1358,50 @@ async function getElectionResults(electionId) {
   const [candidateResults, eligibleVoters] = await Promise.all([
     CandidateModel.aggregate([
       { $match: { electionId: objectElectionId } },
-      { $lookup: { from: "votes", localField: "_id", foreignField: "candidateId", as: "ballots" } },
-      { $project: { candidateId: "$_id", candidateName: "$name", voteCount: { $size: "$ballots" }, sortOrder: 1 } },
+      {
+        $lookup: {
+          from: "votes",
+          localField: "_id",
+          foreignField: "candidateId",
+          as: "ballots"
+        }
+      },
+      {
+        $project: {
+          candidateId: "$_id",
+          candidateName: "$name",
+          voteCount: { $size: "$ballots" },
+          sortOrder: 1
+        }
+      },
       { $sort: { voteCount: -1, sortOrder: 1 } }
     ]),
     VoterEligibilityModel.countDocuments({ electionId: objectElectionId })
   ]);
   return {
-    candidateResults: candidateResults.map((result) => ({ candidateId: asId(result.candidateId), candidateName: result.candidateName, voteCount: result.voteCount })),
+    candidateResults: candidateResults.map((result) => ({
+      candidateId: asId(result.candidateId),
+      candidateName: result.candidateName,
+      voteCount: result.voteCount
+    })),
     eligibleVoters
   };
 }
 async function listAuditEvents(organizationId, targetId) {
   await connectMongo();
-  const filter = { organizationId: objectId(organizationId, "Organization") };
+  const filter = {
+    organizationId: objectId(organizationId, "Organization")
+  };
   if (targetId) filter.targetId = targetId;
   const events = await AuditEventModel.find(filter).sort({ createdAt: -1 }).limit(500).lean();
-  return events.map((event) => ({ id: asId(event._id), eventType: event.eventType, targetType: event.targetType, targetId: event.targetId, metadata: event.metadata ?? null, createdAt: event.createdAt }));
+  return events.map((event) => ({
+    id: asId(event._id),
+    eventType: event.eventType,
+    targetType: event.targetType,
+    targetId: event.targetId,
+    metadata: event.metadata ?? null,
+    createdAt: event.createdAt
+  }));
 }
 async function getElectionRecordExport(electionId) {
   const election = await getElectionById(electionId);
@@ -869,7 +1411,16 @@ async function getElectionRecordExport(electionId) {
     getElectionResults(electionId),
     listAuditEvents(election.organizationId, electionId)
   ]);
-  return { generatedAt: /* @__PURE__ */ new Date(), election: { ...election, candidates: election.candidates, voterCount: voters.length }, results, auditEvents };
+  return {
+    generatedAt: /* @__PURE__ */ new Date(),
+    election: {
+      ...election,
+      candidates: election.candidates,
+      voterCount: voters.length
+    },
+    results,
+    auditEvents
+  };
 }
 async function writeAuditEvent(input) {
   await connectMongo();
@@ -896,7 +1447,11 @@ function getMailboxResourceId() {
 }
 async function sendAccountEmail(message) {
   const configuration = getMailConfiguration();
-  if (!configuration) return { delivered: false, reason: "MAIL_API_KEY is not configured" };
+  if (!configuration)
+    return {
+      delivered: false,
+      reason: "MAIL_API_KEY is not configured"
+    };
   try {
     const payload = {
       to: [message.to],
@@ -912,26 +1467,78 @@ async function sendAccountEmail(message) {
       inReplyTo: void 0,
       forwardOf: void 0
     };
-    await new SendApi(configuration).sendEmail(getMailboxResourceId(), payload, {});
+    await new SendApi(configuration).sendEmail(
+      getMailboxResourceId(),
+      payload,
+      {}
+    );
     return { delivered: true };
   } catch (error) {
-    console.error("[account-email] Hostinger API delivery failed", { message: error instanceof Error ? error.message : "Unknown error" });
-    return { delivered: false, reason: "Hostinger Mail API delivery failed" };
+    console.error("[account-email] Hostinger API delivery failed", {
+      message: error instanceof Error ? error.message : "Unknown error"
+    });
+    return {
+      delivered: false,
+      reason: "Hostinger Mail API delivery failed"
+    };
   }
 }
-var escapeHtml = (value) => value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
+var escapeHtml = (value) => value.replace(
+  /[&<>'"]/g,
+  (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]
+);
 function accountEmailHtml(input) {
   return `<!doctype html><html><body style="margin:0;background:#f6f0e5;color:#12383e;font-family:Arial,sans-serif"><main style="max-width:560px;margin:32px auto;background:#fffaf0;border:1px solid #d8caaf;padding:36px"><p style="letter-spacing:2px;font-size:11px;font-weight:700;color:#a34d3d">BALLOTLY ACCOUNT SECURITY</p><h1 style="font-family:Georgia,serif;font-weight:400">${input.heading}</h1><p style="line-height:1.6">${input.body}</p><p><a href="${input.actionUrl}" style="display:inline-block;background:#114b54;color:#fff9ec;padding:14px 20px;text-decoration:none;font-weight:bold">${input.actionLabel}</a></p><p style="font-size:12px;line-height:1.5;color:#607277">This secure link expires in ${input.expiry} and can only be used once. If you did not request it, you can safely ignore this message.</p></main></body></html>`;
 }
 async function sendVerificationEmail(input) {
   const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
-  const actionUrl = `${baseUrl}/account/verify?token=${encodeURIComponent(input.token)}`;
-  return sendAccountEmail({ to: input.email, subject: "Verify your Ballotly email address", text: `Verify your Ballotly account: ${actionUrl}`, html: accountEmailHtml({ heading: "Verify your email", body: `Hi ${escapeHtml(input.name || "there")}, confirm your email address to activate your Ballotly account.`, actionLabel: "Verify email", actionUrl, expiry: "24 hours" }) });
+  const actionUrl = `${baseUrl}/account/verify?token=${encodeURIComponent(input.token)}${input.returnTo ? `&returnTo=${encodeURIComponent(input.returnTo)}` : ""}`;
+  return sendAccountEmail({
+    to: input.email,
+    subject: "Verify your Ballotly email address",
+    text: `Verify your Ballotly account: ${actionUrl}`,
+    html: accountEmailHtml({
+      heading: "Verify your email",
+      body: `Hi ${escapeHtml(input.name || "there")}, confirm your email address to activate your Ballotly account.`,
+      actionLabel: "Verify email",
+      actionUrl,
+      expiry: "24 hours"
+    })
+  });
 }
 async function sendPasswordRecoveryEmail(input) {
   const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
   const actionUrl = `${baseUrl}/account/reset-password?token=${encodeURIComponent(input.token)}`;
-  return sendAccountEmail({ to: input.email, subject: "Reset your Ballotly password", text: `Reset your Ballotly password: ${actionUrl}`, html: accountEmailHtml({ heading: "Reset your password", body: `Hi ${escapeHtml(input.name || "there")}, use this one-time link to set a new Ballotly password.`, actionLabel: "Reset password", actionUrl, expiry: "30 minutes" }) });
+  return sendAccountEmail({
+    to: input.email,
+    subject: "Reset your Ballotly password",
+    text: `Reset your Ballotly password: ${actionUrl}`,
+    html: accountEmailHtml({
+      heading: "Reset your password",
+      body: `Hi ${escapeHtml(input.name || "there")}, use this one-time link to set a new Ballotly password.`,
+      actionLabel: "Reset password",
+      actionUrl,
+      expiry: "30 minutes"
+    })
+  });
+}
+async function sendElectionInvitationEmail(input) {
+  const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
+  const actionUrl = `${baseUrl}/ballot/invite?token=${encodeURIComponent(input.token)}`;
+  const privacy = input.ballotMode === "anonymous" ? "This is an anonymous ballot. Ballotly records eligibility and participation, but does not store a voter-to-selection link." : "This is an attributable ballot. Authorized election administrators can view your recorded choice, as explained before submission.";
+  const windowText = input.opensAt && input.closesAt ? `Voting opens ${input.opensAt.toLocaleString()} and closes ${input.closesAt.toLocaleString()}.` : "The election administrator will confirm the voting window on the ballot.";
+  return sendAccountEmail({
+    to: input.email,
+    subject: `Your vote is requested: ${input.electionTitle}`,
+    text: `You have been invited to vote in ${input.electionTitle} for ${input.organizationName}. ${windowText} ${privacy} View your ballot: ${actionUrl}`,
+    html: accountEmailHtml({
+      heading: "Your vote is requested",
+      body: `Hi ${escapeHtml(input.name || "there")}, ${escapeHtml(input.organizationName)} is asking you to participate in <strong>${escapeHtml(input.electionTitle)}</strong>. ${escapeHtml(windowText)}<br /><br />${escapeHtml(privacy)}`,
+      actionLabel: "View ballot",
+      actionUrl,
+      expiry: "14 days"
+    })
+  });
 }
 
 // server/authRules.ts
@@ -998,28 +1605,57 @@ var credentialsSchema = z2.object({
   password: z2.string().min(1).max(72)
 });
 var fallbackPasswordHash = "$2a$12$JYptgJj3KOPjX6j.E72BO.1dBCznshZ66fpW1Jg59KQcOTu3mJ8tO";
-var genericCredentialsError = () => new TRPCError3({ code: "UNAUTHORIZED", message: "Email address or password is incorrect." });
-var accountActionTokenSchema2 = z2.object({ token: z2.string().min(32).max(256) });
+var genericCredentialsError = () => new TRPCError3({
+  code: "UNAUTHORIZED",
+  message: "Email address or password is incorrect."
+});
+var accountActionTokenSchema2 = z2.object({
+  token: z2.string().min(32).max(256)
+});
 var authRouter = router({
   me: publicProcedure.query(({ ctx }) => ctx.user),
-  register: publicProcedure.input(credentialsSchema.extend({ name: z2.string().trim().min(2).max(100) })).mutation(async ({ ctx, input }) => {
+  register: publicProcedure.input(
+    credentialsSchema.extend({
+      name: z2.string().trim().min(2).max(100),
+      returnTo: z2.string().startsWith("/").optional()
+    })
+  ).mutation(async ({ ctx, input }) => {
     try {
       assertPasswordPolicy(input.password);
     } catch (error) {
-      throw new TRPCError3({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Password does not meet the security requirements." });
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Password does not meet the security requirements."
+      });
     }
     const email = normalizeAccountEmail(input.email);
     const passwordHash = await bcrypt.hash(input.password, 12);
     try {
-      const user = await registerNativeUser({ name: input.name, email, passwordHash });
+      const user = await registerNativeUser({
+        name: input.name,
+        email,
+        passwordHash
+      });
       await acceptPendingOrganizationInvitations(user);
       setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
-      const token = await createAccountActionToken({ userId: user.id, purpose: "verify_email", expiresInMinutes: 24 * 60 });
-      await sendVerificationEmail({ email, name: user.name, token });
+      const token = await createAccountActionToken({
+        userId: user.id,
+        purpose: "verify_email",
+        expiresInMinutes: 24 * 60
+      });
+      await sendVerificationEmail({
+        email,
+        name: user.name,
+        token,
+        returnTo: input.returnTo
+      });
       return user;
     } catch (error) {
       if (error instanceof Error && /already/i.test(error.message)) {
-        throw new TRPCError3({ code: "CONFLICT", message: "We could not create this account. Try signing in or use a different email address." });
+        throw new TRPCError3({
+          code: "CONFLICT",
+          message: "We could not create this account. Try signing in or use a different email address."
+        });
       }
       throw error;
     }
@@ -1031,59 +1667,124 @@ var authRouter = router({
       throw genericCredentialsError();
     }
     const account = await getUserWithPasswordByEmail(email);
-    const isValid = Boolean(account?.passwordHash) && await bcrypt.compare(input.password, account?.passwordHash ?? fallbackPasswordHash);
+    const isValid = Boolean(account?.passwordHash) && await bcrypt.compare(
+      input.password,
+      account?.passwordHash ?? fallbackPasswordHash
+    );
     if (!account || !isValid) {
       await recordLoginFailure(email);
       throw genericCredentialsError();
     }
     await clearLoginFailures(email);
     await acceptPendingOrganizationInvitations(account.user);
-    setBallotlySessionCookie(ctx.res, await createBallotlySession(account.user));
+    setBallotlySessionCookie(
+      ctx.res,
+      await createBallotlySession(account.user)
+    );
     return account.user;
   }),
-  changePassword: protectedProcedure.input(z2.object({ currentPassword: z2.string().min(1).max(72), newPassword: z2.string().min(1).max(72) })).mutation(async ({ ctx, input }) => {
+  changePassword: protectedProcedure.input(
+    z2.object({
+      currentPassword: z2.string().min(1).max(72),
+      newPassword: z2.string().min(1).max(72)
+    })
+  ).mutation(async ({ ctx, input }) => {
     const account = ctx.user.email ? await getUserWithPasswordByEmail(ctx.user.email) : null;
-    if (!account?.passwordHash || !await bcrypt.compare(input.currentPassword, account.passwordHash)) throw genericCredentialsError();
+    if (!account?.passwordHash || !await bcrypt.compare(input.currentPassword, account.passwordHash))
+      throw genericCredentialsError();
     try {
       assertPasswordPolicy(input.newPassword);
     } catch (error) {
-      throw new TRPCError3({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Password does not meet the security requirements." });
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Password does not meet the security requirements."
+      });
     }
-    const user = await changeNativeUserPassword({ userId: ctx.user.id, passwordHash: await bcrypt.hash(input.newPassword, 12) });
+    const user = await changeNativeUserPassword({
+      userId: ctx.user.id,
+      passwordHash: await bcrypt.hash(input.newPassword, 12)
+    });
     setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
     return { success: true };
   }),
   resendVerification: protectedProcedure.mutation(async ({ ctx }) => {
-    if (!ctx.user.email) throw new TRPCError3({ code: "BAD_REQUEST", message: "This account does not have an email address." });
-    if (ctx.user.emailVerifiedAt) return { success: true, alreadyVerified: true };
-    const token = await createAccountActionToken({ userId: ctx.user.id, purpose: "verify_email", expiresInMinutes: 24 * 60 });
-    await sendVerificationEmail({ email: ctx.user.email, name: ctx.user.name, token });
+    if (!ctx.user.email)
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: "This account does not have an email address."
+      });
+    if (ctx.user.emailVerifiedAt)
+      return { success: true, alreadyVerified: true };
+    const token = await createAccountActionToken({
+      userId: ctx.user.id,
+      purpose: "verify_email",
+      expiresInMinutes: 24 * 60
+    });
+    await sendVerificationEmail({
+      email: ctx.user.email,
+      name: ctx.user.name,
+      token
+    });
     return { success: true, alreadyVerified: false };
   }),
   verifyEmail: publicProcedure.input(accountActionTokenSchema2).mutation(async ({ ctx, input }) => {
-    const userId = await consumeAccountActionToken({ token: input.token, purpose: "verify_email" });
-    if (!userId) throw new TRPCError3({ code: "BAD_REQUEST", message: "This verification link is invalid or has expired." });
+    const userId = await consumeAccountActionToken({
+      token: input.token,
+      purpose: "verify_email"
+    });
+    if (!userId)
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: "This verification link is invalid or has expired."
+      });
     const user = await verifyNativeUserEmail(userId);
     setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
     return { success: true };
   }),
   requestPasswordReset: publicProcedure.input(z2.object({ email: z2.string().email().max(320) })).mutation(async ({ input }) => {
-    const account = await getUserWithPasswordByEmail(normalizeAccountEmail(input.email));
+    const account = await getUserWithPasswordByEmail(
+      normalizeAccountEmail(input.email)
+    );
     if (account?.user.email) {
-      const token = await createAccountActionToken({ userId: account.user.id, purpose: "reset_password", expiresInMinutes: 30 });
-      await sendPasswordRecoveryEmail({ email: account.user.email, name: account.user.name, token });
+      const token = await createAccountActionToken({
+        userId: account.user.id,
+        purpose: "reset_password",
+        expiresInMinutes: 30
+      });
+      await sendPasswordRecoveryEmail({
+        email: account.user.email,
+        name: account.user.name,
+        token
+      });
     }
     return { success: true };
   }),
-  resetPassword: publicProcedure.input(accountActionTokenSchema2.extend({ newPassword: z2.string().min(1).max(72) })).mutation(async ({ ctx, input }) => {
+  resetPassword: publicProcedure.input(
+    accountActionTokenSchema2.extend({
+      newPassword: z2.string().min(1).max(72)
+    })
+  ).mutation(async ({ ctx, input }) => {
     try {
       assertPasswordPolicy(input.newPassword);
     } catch (error) {
-      throw new TRPCError3({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Password does not meet the security requirements." });
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Password does not meet the security requirements."
+      });
     }
-    const userId = await consumeAccountActionToken({ token: input.token, purpose: "reset_password" });
-    if (!userId) throw new TRPCError3({ code: "BAD_REQUEST", message: "This password reset link is invalid or has expired." });
-    const user = await changeNativeUserPassword({ userId, passwordHash: await bcrypt.hash(input.newPassword, 12) });
+    const userId = await consumeAccountActionToken({
+      token: input.token,
+      purpose: "reset_password"
+    });
+    if (!userId)
+      throw new TRPCError3({
+        code: "BAD_REQUEST",
+        message: "This password reset link is invalid or has expired."
+      });
+    const user = await changeNativeUserPassword({
+      userId,
+      passwordHash: await bcrypt.hash(input.newPassword, 12)
+    });
     setBallotlySessionCookie(ctx.res, await createBallotlySession(user));
     return { success: true };
   }),
@@ -1110,16 +1811,58 @@ var objectIdInput = z3.string().regex(/^[a-f\d]{24}$/i, "Invalid identifier.");
 async function requireManager(organizationId, userId) {
   const access = await getOrganizationAccess(organizationId, userId);
   if (!access || !canManageOrganization(access.membership.role)) {
-    throw new TRPCError4({ code: "FORBIDDEN", message: "Organization administrator access is required." });
+    throw new TRPCError4({
+      code: "FORBIDDEN",
+      message: "Organization administrator access is required."
+    });
   }
   return access;
 }
 async function requireMember(organizationId, userId) {
   const access = await getOrganizationAccess(organizationId, userId);
-  if (!access) throw new TRPCError4({ code: "FORBIDDEN", message: "You do not have access to this organization." });
+  if (!access)
+    throw new TRPCError4({
+      code: "FORBIDDEN",
+      message: "You do not have access to this organization."
+    });
   return access;
 }
 var electionRouter = router({
+  readiness: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
+    await requireMember(election.organizationId, ctx.user.id);
+    return getElectionReadiness(input.electionId);
+  }),
+  invitation: publicProcedure.input(z3.object({ token: z3.string().min(32).max(256) })).query(async ({ input }) => {
+    const invitation = await getElectionInvitation(input.token);
+    if (!invitation)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "This election invitation is invalid or has expired."
+      });
+    return {
+      election: invitation.election,
+      email: invitation.email.replace(/^(.{1,2}).*(@.*)$/, "$1\u2022\u2022\u2022$2"),
+      displayName: invitation.displayName,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt
+    };
+  }),
+  claimInvitation: protectedProcedure.input(z3.object({ token: z3.string().min(32).max(256) })).mutation(async ({ ctx, input }) => {
+    try {
+      return await claimElectionInvitation(input.token, ctx.user);
+    } catch (error) {
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Unable to claim this election invitation."
+      });
+    }
+  }),
   list: protectedProcedure.input(z3.object({ organizationId: objectIdInput })).query(async ({ ctx, input }) => {
     await requireMember(input.organizationId, ctx.user.id);
     return listElectionsForOrganization(input.organizationId);
@@ -1138,9 +1881,15 @@ var electionRouter = router({
   ).mutation(async ({ ctx, input }) => {
     await requireManager(input.organizationId, ctx.user.id);
     if (input.opensAt && input.closesAt && input.closesAt <= input.opensAt) {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: "The closing time must be after the opening time." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "The closing time must be after the opening time."
+      });
     }
-    const election = await createElection({ ...input, createdByUserId: ctx.user.id });
+    const election = await createElection({
+      ...input,
+      createdByUserId: ctx.user.id
+    });
     await writeAuditEvent({
       organizationId: input.organizationId,
       actorUserId: ctx.user.id,
@@ -1153,145 +1902,406 @@ var electionRouter = router({
   }),
   get: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireMember(election.organizationId, ctx.user.id);
     return election;
   }),
-  updateStatus: protectedProcedure.input(z3.object({ electionId: objectIdInput, status: z3.enum(electionStatuses2) })).mutation(async ({ ctx, input }) => {
+  updateStatus: protectedProcedure.input(
+    z3.object({ electionId: objectIdInput, status: z3.enum(electionStatuses2) })
+  ).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     try {
       assertElectionTransition(election.status, input.status);
-      if (input.status === "scheduled" && (!election.opensAt || !election.closesAt)) throw new Error("Set both an opening and closing time before scheduling this election.");
+      if (input.status === "scheduled" && (!election.opensAt || !election.closesAt))
+        throw new Error(
+          "Set both an opening and closing time before scheduling this election."
+        );
       if (input.status === "open") {
-        assertElectionReadyForLaunch({ candidateCount: election.candidates.length, voterCount: await getVoterEnrollmentCount(election.id), status: election.status, opensAt: election.opensAt });
+        assertElectionReadyForLaunch({
+          candidateCount: election.candidates.length,
+          voterCount: await getVoterEnrollmentCount(election.id),
+          status: election.status,
+          opensAt: election.opensAt
+        });
       }
     } catch (error) {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Invalid election lifecycle transition." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Invalid election lifecycle transition."
+      });
     }
     const updated = await setElectionStatus(election.id, input.status);
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.status_changed", targetType: "election", targetId: election.id, metadata: { from: election.status, to: input.status } });
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "election.status_changed",
+      targetType: "election",
+      targetId: election.id,
+      metadata: { from: election.status, to: input.status }
+    });
     return updated;
   }),
-  updateBallotMode: protectedProcedure.input(z3.object({ electionId: objectIdInput, ballotMode: z3.enum(["anonymous", "attributable"]) })).mutation(async ({ ctx, input }) => {
+  updateBallotMode: protectedProcedure.input(
+    z3.object({
+      electionId: objectIdInput,
+      ballotMode: z3.enum(["anonymous", "attributable"])
+    })
+  ).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     const voterCount = await getVoterEnrollmentCount(election.id);
     if (!canChangeBallotMode(election.status, voterCount)) {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: "Ballot privacy cannot change after voter enrollment begins. Create a new election if the mode needs to change." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "Ballot privacy cannot change after voter enrollment begins. Create a new election if the mode needs to change."
+      });
     }
-    const updated = await setElectionBallotMode(election.id, input.ballotMode);
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.ballot_mode_changed", targetType: "election", targetId: election.id, metadata: { from: election.ballotMode, to: input.ballotMode } });
+    const updated = await setElectionBallotMode(
+      election.id,
+      input.ballotMode
+    );
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "election.ballot_mode_changed",
+      targetType: "election",
+      targetId: election.id,
+      metadata: { from: election.ballotMode, to: input.ballotMode }
+    });
     return updated;
   }),
-  updateSchedule: protectedProcedure.input(z3.object({ electionId: objectIdInput, opensAt: z3.coerce.date().nullable(), closesAt: z3.coerce.date().nullable() })).mutation(async ({ ctx, input }) => {
+  updateSchedule: protectedProcedure.input(
+    z3.object({
+      electionId: objectIdInput,
+      opensAt: z3.coerce.date().nullable(),
+      closesAt: z3.coerce.date().nullable()
+    })
+  ).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     if (election.status !== "draft" && election.status !== "scheduled") {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: "The schedule is locked once an election opens." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "The schedule is locked once an election opens."
+      });
     }
     if (input.opensAt && input.closesAt && input.closesAt <= input.opensAt) {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: "The closing time must be after the opening time." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "The closing time must be after the opening time."
+      });
     }
-    const updated = await setElectionSchedule(election.id, input.opensAt, input.closesAt);
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.schedule_updated", targetType: "election", targetId: election.id });
+    const updated = await setElectionSchedule(
+      election.id,
+      input.opensAt,
+      input.closesAt
+    );
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "election.schedule_updated",
+      targetType: "election",
+      targetId: election.id
+    });
     return updated;
   }),
-  addCandidate: protectedProcedure.input(z3.object({ electionId: objectIdInput, name: z3.string().trim().min(2).max(120), biography: z3.string().trim().max(2e3).optional() })).mutation(async ({ ctx, input }) => {
+  addCandidate: protectedProcedure.input(
+    z3.object({
+      electionId: objectIdInput,
+      name: z3.string().trim().min(2).max(120),
+      biography: z3.string().trim().max(2e3).optional()
+    })
+  ).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     if (election.status !== "draft" && election.status !== "scheduled") {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: "Candidates can only be changed before voting opens." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "Candidates can only be changed before voting opens."
+      });
     }
     const candidate = await addCandidate(input);
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "candidate.added", targetType: "candidate", targetId: candidate.id });
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "candidate.added",
+      targetType: "candidate",
+      targetId: candidate.id
+    });
     return candidate;
   }),
   removeCandidate: protectedProcedure.input(z3.object({ electionId: objectIdInput, candidateId: objectIdInput })).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
-    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Candidates are locked once voting opens." });
+    if (election.status !== "draft" && election.status !== "scheduled")
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "Candidates are locked once voting opens."
+      });
     const candidate = await removeCandidate(election.id, input.candidateId);
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "candidate.removed", targetType: "candidate", targetId: candidate.id });
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "candidate.removed",
+      targetType: "candidate",
+      targetId: candidate.id
+    });
     return candidate;
   }),
-  enrollVoter: protectedProcedure.input(z3.object({ electionId: objectIdInput, email: z3.string().email().max(320), displayName: z3.string().trim().max(160).optional() })).mutation(async ({ ctx, input }) => {
+  enrollVoter: protectedProcedure.input(
+    z3.object({
+      electionId: objectIdInput,
+      email: z3.string().email().max(320),
+      displayName: z3.string().trim().max(160).optional()
+    })
+  ).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     if (election.status !== "draft" && election.status !== "scheduled") {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: "Voter eligibility is locked once voting opens." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "Voter eligibility is locked once voting opens."
+      });
     }
-    const voter = await createOrUpdateVoterEligibility({ ...input, email: normalizeEmail(input.email) });
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.enrolled", targetType: "voter_eligibility", targetId: voter.id });
+    const voter = await createOrUpdateVoterEligibility({
+      ...input,
+      email: normalizeEmail(input.email)
+    });
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "voter.enrolled",
+      targetType: "voter_eligibility",
+      targetId: voter.id
+    });
     return voter;
   }),
-  importVoters: protectedProcedure.input(z3.object({ electionId: objectIdInput, roster: z3.string().min(1).max(1e5) })).mutation(async ({ ctx, input }) => {
+  sendInvitation: protectedProcedure.input(z3.object({ electionId: objectIdInput, voterId: objectIdInput })).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
+    const access = await requireManager(election.organizationId, ctx.user.id);
+    const invitation = await createElectionInvitation(
+      election.id,
+      input.voterId
+    );
+    const delivery = await sendElectionInvitationEmail({
+      email: invitation.voter.email,
+      name: invitation.voter.displayName,
+      organizationName: access.organization.name,
+      electionTitle: election.title,
+      ballotMode: election.ballotMode,
+      opensAt: election.opensAt,
+      closesAt: election.closesAt,
+      token: invitation.token
+    });
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "voter.invitation_sent",
+      targetType: "voter_eligibility",
+      targetId: input.voterId,
+      metadata: { delivered: delivery.delivered }
+    });
+    if (!delivery.delivered)
+      throw new TRPCError4({
+        code: "BAD_GATEWAY",
+        message: delivery.reason || "The invitation could not be delivered."
+      });
+    return { delivered: true };
+  }),
+  importVoters: protectedProcedure.input(
+    z3.object({
+      electionId: objectIdInput,
+      roster: z3.string().min(1).max(1e5)
+    })
+  ).mutation(async ({ ctx, input }) => {
+    const election = await getElectionById(input.electionId);
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
-    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Voter eligibility is locked once voting opens." });
+    if (election.status !== "draft" && election.status !== "scheduled")
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "Voter eligibility is locked once voting opens."
+      });
     const parsed = parseVoterRoster(input.roster);
-    if (parsed.rejected.length) throw new TRPCError4({ code: "BAD_REQUEST", message: `Correct ${parsed.rejected.length} roster issue${parsed.rejected.length === 1 ? "" : "s"} before importing.` });
-    for (const voter of parsed.accepted) await createOrUpdateVoterEligibility({ electionId: election.id, ...voter });
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.roster_imported", targetType: "election", targetId: election.id, metadata: { count: parsed.accepted.length } });
+    if (parsed.rejected.length)
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: `Correct ${parsed.rejected.length} roster issue${parsed.rejected.length === 1 ? "" : "s"} before importing.`
+      });
+    for (const voter of parsed.accepted)
+      await createOrUpdateVoterEligibility({
+        electionId: election.id,
+        ...voter
+      });
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "voter.roster_imported",
+      targetType: "election",
+      targetId: election.id,
+      metadata: { count: parsed.accepted.length }
+    });
     return { imported: parsed.accepted.length };
   }),
   removeVoter: protectedProcedure.input(z3.object({ electionId: objectIdInput, voterId: objectIdInput })).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
-    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Voter eligibility is locked once voting opens." });
+    if (election.status !== "draft" && election.status !== "scheduled")
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "Voter eligibility is locked once voting opens."
+      });
     try {
       const voter = await removeVoterEligibility(election.id, input.voterId);
-      await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "voter.removed", targetType: "voter_eligibility", targetId: voter.id });
+      await writeAuditEvent({
+        organizationId: election.organizationId,
+        actorUserId: ctx.user.id,
+        eventType: "voter.removed",
+        targetType: "voter_eligibility",
+        targetId: voter.id
+      });
       return voter;
     } catch (error) {
-      throw new TRPCError4({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to remove this voter." });
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Unable to remove this voter."
+      });
     }
   }),
-  updateResultsVisibility: protectedProcedure.input(z3.object({ electionId: objectIdInput, resultsVisibility: z3.enum(["after_close", "always", "admins_only"]) })).mutation(async ({ ctx, input }) => {
+  updateResultsVisibility: protectedProcedure.input(
+    z3.object({
+      electionId: objectIdInput,
+      resultsVisibility: z3.enum(["after_close", "always", "admins_only"])
+    })
+  ).mutation(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
-    if (election.status !== "draft" && election.status !== "scheduled") throw new TRPCError4({ code: "BAD_REQUEST", message: "Results visibility is locked once voting opens." });
-    const updated = await setElectionResultsVisibility(election.id, input.resultsVisibility);
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.results_visibility_changed", targetType: "election", targetId: election.id, metadata: { resultsVisibility: input.resultsVisibility } });
+    if (election.status !== "draft" && election.status !== "scheduled")
+      throw new TRPCError4({
+        code: "BAD_REQUEST",
+        message: "Results visibility is locked once voting opens."
+      });
+    const updated = await setElectionResultsVisibility(
+      election.id,
+      input.resultsVisibility
+    );
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "election.results_visibility_changed",
+      targetType: "election",
+      targetId: election.id,
+      metadata: { resultsVisibility: input.resultsVisibility }
+    });
     return updated;
   }),
   listVoters: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     return listVoterEligibility(election.id);
   }),
   results: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     const isClosed = election.status === "closed" || election.status === "archived";
     if (election.resultsVisibility === "after_close" && !isClosed) {
-      throw new TRPCError4({ code: "FORBIDDEN", message: "Results are available after the election closes." });
+      throw new TRPCError4({
+        code: "FORBIDDEN",
+        message: "Results are available after the election closes."
+      });
     }
     return getElectionResults(election.id);
   }),
   audit: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     return listAuditEvents(election.organizationId, election.id);
   }),
   exportRecord: protectedProcedure.input(z3.object({ electionId: objectIdInput })).query(async ({ ctx, input }) => {
     const election = await getElectionById(input.electionId);
-    if (!election) throw new TRPCError4({ code: "NOT_FOUND", message: "Election not found." });
+    if (!election)
+      throw new TRPCError4({
+        code: "NOT_FOUND",
+        message: "Election not found."
+      });
     await requireManager(election.organizationId, ctx.user.id);
     const record = await getElectionRecordExport(election.id);
-    await writeAuditEvent({ organizationId: election.organizationId, actorUserId: ctx.user.id, eventType: "election.record_exported", targetType: "election", targetId: election.id });
+    await writeAuditEvent({
+      organizationId: election.organizationId,
+      actorUserId: ctx.user.id,
+      eventType: "election.record_exported",
+      targetType: "election",
+      targetId: election.id
+    });
     return record;
   })
 });
