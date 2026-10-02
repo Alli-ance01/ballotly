@@ -40,22 +40,22 @@
 - [x] Fix query-string parsing so organization workspaces and automatic first-board setup open after organization creation.
 - [x] Document Ballotly’s production-readiness scope, trust boundaries, and non-regulated-election limitations.
 - [ ] Add secure account recovery, verified-email readiness, and session-hardening controls.
-- [ ] Complete organization membership management, voter invitation status, and safe roster-import validation.
+- [x] Complete organization membership management, voter invitation status, and safe roster-import validation.
 - [x] Add immutable election configuration review, scheduled lifecycle enforcement, and close-election safeguards.
 - [x] Add stronger audit logs, exportable election records, and controlled results publication.
-- [ ] Add production UX for empty, loading, error, confirmation, and destructive-action states across workflows.
+- [x] Add production UX for empty, loading, error, confirmation, and destructive-action states across workflows.
 - [ ] Complete keyboard, screen-reader, mobile, and reduced-motion accessibility refinements.
 - [ ] Add privacy, authorization, lifecycle, and failure-path regression tests with operational documentation.
 - [x] Verify the hardened release on Vercel and push the final production-oriented build.
 - [x] Expose owner-controlled active-member role changes and removal in the workspace UI.
-- [ ] Add voter invitation status and activation guidance to the election administration UI.
+- [x] Add voter invitation status and activation guidance to the election administration UI.
 - [ ] Configure Hostinger SMTP delivery from ballotly@alliancedev.online with hello@alliancedev.online as the reply-to address.
 - [ ] Implement and verify email-address confirmation and secure password-recovery flows.
 - [x] Review Boardly’s API-based email implementation and reuse its validated provider pattern for Ballotly.
-- [ ] Replace the rejected Hostinger SMTP path with Hostinger Mail API delivery, then verify it after Vercel credentials are configured.
+- [x] Replace the rejected Hostinger SMTP path with Hostinger Mail API delivery, then verify it after Vercel credentials are configured.
 - [ ] Validate the deployed Hostinger Mail API key and mailbox resource after the user’s Vercel environment update.
 - [ ] Verify the production Mail API configuration after the user-confirmed Vercel redeploy.
 - [ ] Require email verification for newly registered Ballotly accounts using one-time secure links.
-- [ ] Add a secure forgot-password and reset-password flow with short-lived single-use links.
+- [x] Add a secure forgot-password and reset-password flow with short-lived single-use links.
 - [ ] Create a non-destructive review and migration plan for existing unverified or mock accounts.
 - [x] Confirm that the prior Ballotly test database was intentionally cleared before enabling mandatory verification.

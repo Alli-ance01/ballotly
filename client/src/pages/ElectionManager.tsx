@@ -40,6 +40,25 @@ const statusOptions = [
   "closed",
   "archived",
 ] as const;
+
+type ElectionStatusOption = (typeof statusOptions)[number];
+
+const allowedNext: Record<ElectionStatusOption, readonly ElectionStatusOption[]> = {
+  draft: ["draft", "scheduled", "open", "archived"],
+  scheduled: ["scheduled", "draft", "open", "archived"],
+  open: ["open", "closed"],
+  closed: ["closed", "archived"],
+  archived: ["archived"],
+};
+
+const statusLabel: Record<ElectionStatusOption, string> = {
+  draft: "Draft (setup)",
+  scheduled: "Scheduled",
+  open: "Open (live voting)",
+  closed: "Closed (tallying)",
+  archived: "Archived",
+};
+
 const localDateTime = (value?: Date | string | null) =>
   value ? new Date(value).toISOString().slice(0, 16) : "";
 
@@ -138,6 +157,7 @@ export default function ElectionManager() {
     id: string;
     name: string;
   } | null>(null);
+  const [resendingVoterId, setResendingVoterId] = useState<string | null>(null);
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
 
@@ -256,9 +276,9 @@ export default function ElectionManager() {
                   )
                 }
               >
-                {statusOptions.map(status => (
+                {(allowedNext[election.status as ElectionStatusOption] || statusOptions).map(status => (
                   <option key={status} value={status}>
-                    {status}
+                    {statusLabel[status] || status}
                   </option>
                 ))}
               </select>
@@ -270,6 +290,9 @@ export default function ElectionManager() {
               Preview ballot <Send size={16} />
             </Button>
           </div>
+          {updateStatus.error && (
+            <p className="form-error">{updateStatus.error.message}</p>
+          )}
         </div>
 
         <section className="production-review readiness-review">
@@ -518,8 +541,10 @@ export default function ElectionManager() {
                 </Button>
               </form>
             )}
-            {addCandidate.error && (
-              <p className="form-error">{addCandidate.error.message}</p>
+            {(addCandidate.error || removeCandidate.error) && (
+              <p className="form-error">
+                {addCandidate.error?.message || removeCandidate.error?.message}
+              </p>
             )}
           </section>
           <section className="admin-panel voter-panel">
@@ -562,15 +587,21 @@ export default function ElectionManager() {
                         <div className="voter-actions">
                           <button
                             className="quiet-action"
-                            disabled={sendInvitation.isPending}
-                            onClick={() =>
-                              sendInvitation.mutate({
-                                electionId,
-                                voterId: voter.id,
-                              })
-                            }
+                            disabled={sendInvitation.isPending && resendingVoterId === voter.id}
+                            onClick={() => {
+                              setResendingVoterId(voter.id);
+                              sendInvitation.mutate(
+                                {
+                                  electionId,
+                                  voterId: voter.id,
+                                },
+                                {
+                                  onSettled: () => setResendingVoterId(null),
+                                }
+                              );
+                            }}
                           >
-                            {sendInvitation.isPending
+                            {sendInvitation.isPending && resendingVoterId === voter.id
                               ? "Sending…"
                               : voter.activationStatus === "active"
                                 ? "Resend"
@@ -653,17 +684,29 @@ export default function ElectionManager() {
                 </form>
               </>
             )}
-            {(enrollVoter.error || importVoters.error) && (
+            {(enrollVoter.error ||
+              importVoters.error ||
+              sendInvitation.error ||
+              removeVoter.error) && (
               <p className="form-error">
-                {enrollVoter.error?.message || importVoters.error?.message}
+                {enrollVoter.error?.message ||
+                  importVoters.error?.message ||
+                  sendInvitation.error?.message ||
+                  removeVoter.error?.message}
               </p>
             )}
           </section>
         </div>
-        {(election.status === "closed" || election.status === "archived") && (
+        {(election.status === "closed" ||
+          election.status === "archived" ||
+          election.resultsVisibility !== "after_close") && (
           <section className="results-panel">
             <div>
-              <span className="section-label">OFFICIAL RESULT</span>
+              <span className="section-label">
+                {election.status === "open"
+                  ? "LIVE INTERIM RESULTS"
+                  : "OFFICIAL RESULT"}
+              </span>
               <h2>Vote totals</h2>
               <p>{results.data?.eligibleVoters ?? 0} eligible voters</p>
             </div>

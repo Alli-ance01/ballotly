@@ -387,6 +387,7 @@ export const electionRouter = router({
         targetType: "voter_eligibility",
         targetId: voter.id,
       });
+
       return voter;
     }),
 
@@ -469,6 +470,7 @@ export const electionRouter = router({
         targetId: election.id,
         metadata: { count: parsed.accepted.length },
       });
+
       return { imported: parsed.accepted.length };
     }),
 
@@ -610,4 +612,40 @@ export const electionRouter = router({
       });
       return record;
     }),
+
+  resendVoterInvitation: protectedProcedure
+    .input(z.object({ electionId: objectIdInput, voterId: objectIdInput }))
+    .mutation(async ({ ctx, input }) => {
+      const election = await getElectionById(input.electionId);
+      if (!election)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Election not found.",
+        });
+      const access = await requireManager(election.organizationId, ctx.user.id);
+      const invitation = await createElectionInvitation(
+        election.id,
+        input.voterId
+      );
+      const delivery = await sendElectionInvitationEmail({
+        email: invitation.voter.email,
+        name: invitation.voter.displayName,
+        organizationName: access.organization.name,
+        electionTitle: election.title,
+        ballotMode: election.ballotMode,
+        opensAt: election.opensAt,
+        closesAt: election.closesAt,
+        token: invitation.token,
+      });
+      await writeAuditEvent({
+        organizationId: election.organizationId,
+        actorUserId: ctx.user.id,
+        eventType: "voter.invitation_sent",
+        targetType: "voter_eligibility",
+        targetId: input.voterId,
+        metadata: { delivered: delivery.delivered, resent: true },
+      });
+      return { success: true, delivered: delivery.delivered };
+    }),
 });
+

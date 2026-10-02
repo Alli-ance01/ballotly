@@ -1,8 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { castVote, getElectionById, getVotingEligibility, writeAuditEvent } from "../db";
+import { castVote, getElectionById, getOrganizationAccess, getVotingEligibility, writeAuditEvent } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { assertVoteEligibility, isElectionOpen, normalizeEmail } from "../votingRules";
+import { canManageOrganization } from "../authorizationRules";
 
 const objectIdInput = z.string().regex(/^[a-f\d]{24}$/i, "Invalid identifier.");
 
@@ -12,11 +13,17 @@ export const votingRouter = router({
     .query(async ({ ctx, input }) => {
       const election = await getElectionById(input.electionId);
       if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
+      const access = await getOrganizationAccess({ organizationId: election.organizationId, userId: ctx.user.id });
+      const isManager = Boolean(access && canManageOrganization(access.membership.role));
       const eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email ?? "") });
-      if (!eligibility) throw new TRPCError({ code: "FORBIDDEN", message: "You are not enrolled as a voter for this election." });
+      if (!eligibility && !isManager) throw new TRPCError({ code: "FORBIDDEN", message: "You are not enrolled as a voter for this election." });
       return {
         election,
-        eligibility: { hasVoted: eligibility.hasVoted, isOpen: isElectionOpen(election) },
+        eligibility: {
+          hasVoted: eligibility?.hasVoted ?? false,
+          isOpen: isElectionOpen(election),
+          isManagerPreview: !eligibility && isManager,
+        },
         disclosure: election.ballotMode === "attributable"
           ? "This is an attributable ballot. Election administrators can see how each enrolled voter votes."
           : "This is an anonymous ballot. Your identity is used to confirm eligibility, but election administrators cannot view a voter-to-selection link.",

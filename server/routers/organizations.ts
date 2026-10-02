@@ -3,6 +3,16 @@ import { z } from "zod";
 import { assignOrganizationRole, createOrganization, createOrganizationInvitation, getOrganizationAccess, listOrganizationInvitations, listOrganizationMembers, listOrganizationsForUser, removeOrganizationMember, revokeOrganizationInvitation, writeAuditEvent } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { canAssignOrganizationRoles } from "../authorizationRules";
+import { isAccountEmailConfigured, sendAccountEmail } from "../email";
+
+async function sendOrgInvitationEmail(input: { email: string; orgName: string; role: string }) {
+  if (!isAccountEmailConfigured()) return;
+  const baseUrl = process.env.APP_BASE_URL || "https://ballotly.alliancedev.online";
+  const subject = `You have been invited to join ${input.orgName} on Ballotly`;
+  const text = `You have been invited to join "${input.orgName}" as ${input.role === "admin" ? "an administrator" : "a member"} on Ballotly. Sign in or create a Ballotly account at ${baseUrl}/account to accept this invitation.`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f6f0e5;color:#12383e;font-family:Arial,sans-serif"><main style="max-width:560px;margin:32px auto;background:#fffaf0;border:1px solid #d8caaf;padding:36px"><p style="letter-spacing:2px;font-size:11px;font-weight:700;color:#a34d3d">BALLOTLY WORKSPACE INVITATION</p><h1 style="font-family:Georgia,serif;font-weight:400">You have been invited to a workspace.</h1><p style="line-height:1.6">You have been invited to join <strong>${input.orgName}</strong> as ${input.role === "admin" ? "an administrator" : "a member"} on Ballotly. Sign in or create an account with this exact email address to accept the invitation.</p><p><a href="${baseUrl}/account" style="display:inline-block;background:#114b54;color:#fff9ec;padding:14px 20px;text-decoration:none;font-weight:bold">Accept invitation</a></p><p style="font-size:12px;line-height:1.5;color:#607277">This invitation expires in 14 days. If you were not expecting it, you can safely ignore this message.</p></main></body></html>`;
+  await sendAccountEmail({ to: input.email, subject, text, html }).catch(() => {});
+}
 
 const objectIdInput = z.string().regex(/^[a-f\d]{24}$/i, "Invalid organization identifier.");
 
@@ -67,6 +77,8 @@ export const organizationRouter = router({
       if (!access || !canAssignOrganizationRoles(access.membership.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Only the organization owner can invite workspace members." });
       const invitation = await createOrganizationInvitation({ ...input, createdByUserId: ctx.user.id });
       await writeAuditEvent({ organizationId: input.organizationId, actorUserId: ctx.user.id, eventType: "organization.invitation_created", targetType: "organization_invitation", targetId: invitation.id, metadata: { role: input.role } });
+      // Send invitation email – non-blocking
+      sendOrgInvitationEmail({ email: input.email, orgName: access.organization.name, role: input.role });
       return invitation;
     }),
 
