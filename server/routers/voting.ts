@@ -20,7 +20,7 @@ export const votingRouter = router({
     .query(async ({ ctx, input }) => {
       const election = await getElectionById(input.electionId);
       if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
-      const access = await getOrganizationAccess({ organizationId: election.organizationId, userId: ctx.user.id });
+      const access = await getOrganizationAccess(election.organizationId, ctx.user.id);
       const isManager = Boolean(access && canManageOrganization(access.membership.role));
       let eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email ?? "") });
       if (!eligibility && isElectionOpen(election) && ctx.user.email) {
@@ -31,7 +31,27 @@ export const votingRouter = router({
         });
         eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email) });
       }
-      if (!eligibility && !isManager) throw new TRPCError({ code: "FORBIDDEN", message: "You are not enrolled as a voter for this election." });
+      if (!eligibility && !isManager) {
+        if (election.status === "scheduled") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `This ballot is scheduled to open on ${election.opensAt ? new Date(election.opensAt).toLocaleString() : "a future date"}.`,
+          });
+        }
+        if (election.status === "closed") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This ballot has concluded and is closed for voting.",
+          });
+        }
+        if (election.status === "draft") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This ballot is in draft mode and has not yet been opened for voting.",
+          });
+        }
+        throw new TRPCError({ code: "FORBIDDEN", message: "You are not enrolled as a voter for this election." });
+      }
       return {
         election,
         eligibility: {
