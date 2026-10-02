@@ -28,11 +28,26 @@ export function canChangeBallotMode(status: ElectionStatus, enrolledVoterCount: 
   return status === "draft" && enrolledVoterCount === 0;
 }
 
-export function assertElectionReadyForLaunch(input: { candidateCount: number; voterCount: number; status: ElectionStatus; opensAt?: Date | null; now?: Date }) {
-  if (input.candidateCount < 2) throw new Error("Add at least two candidates before opening an election.");
-  if (input.voterCount < 1) throw new Error("Enroll at least one voter before opening an election.");
-  if (input.status === "scheduled" && input.opensAt && input.opensAt.getTime() > (input.now ?? new Date()).getTime()) {
-    throw new Error("This election is scheduled to open later. Update its schedule before opening it early.");
+export function assertElectionReadyForLaunch(input: {
+  candidateCount: number;
+  voterCount?: number;
+  status: ElectionStatus;
+  opensAt?: Date | null;
+  now?: Date;
+  requireEnrolledVoters?: boolean;
+}) {
+  if (input.candidateCount < 2)
+    throw new Error("Add at least two candidates or options before opening a ballot.");
+  if (input.requireEnrolledVoters && (input.voterCount ?? 0) < 1)
+    throw new Error("Enroll at least one voter before opening an election.");
+  if (
+    input.status === "scheduled" &&
+    input.opensAt &&
+    input.opensAt.getTime() > (input.now ?? new Date()).getTime()
+  ) {
+    throw new Error(
+      "This election is scheduled to open later. Update its schedule before opening it early."
+    );
   }
 }
 

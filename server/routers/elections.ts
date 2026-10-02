@@ -5,6 +5,7 @@ import {
   claimElectionInvitation,
   createElectionInvitation,
   createElection,
+  createOrganization,
   createOrUpdateVoterEligibility,
   getElectionById,
   getElectionInvitation,
@@ -14,6 +15,7 @@ import {
   getOrganizationAccess,
   getVoterEnrollmentCount,
   listElectionsForOrganization,
+  listOrganizationsForUser,
   listVoterEligibility,
   listAuditEvents,
   removeCandidate,
@@ -104,6 +106,113 @@ export const electionRouter = router({
               : "Unable to claim this election invitation.",
         });
       }
+    }),
+
+  myBallots: protectedProcedure.query(async ({ ctx }) => {
+    const orgs = await listOrganizationsForUser(ctx.user.id);
+    const elections = [];
+    for (const org of orgs) {
+      const orgElections = await listElectionsForOrganization(
+        org.organization.id
+      );
+      elections.push(...orgElections);
+    }
+    return elections.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }),
+
+  createQuickBallot: protectedProcedure
+    .input(
+      z.object({
+        title: z
+          .string()
+          .trim()
+          .min(2, "Title must be at least 2 characters")
+          .max(160),
+        description: z.string().trim().max(2000).optional(),
+        ballotMode: z.enum(["anonymous", "attributable"]).default("anonymous"),
+        options: z
+          .array(z.string().trim().min(1, "Option cannot be empty").max(120))
+          .min(2, "Add at least two options"),
+        timing: z.enum(["manual", "scheduled"]).default("manual"),
+        opensAt: z.coerce.date().optional().nullable(),
+        closesAt: z.coerce.date().optional().nullable(),
+        publishNow: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      let orgs = await listOrganizationsForUser(ctx.user.id);
+      let targetOrg = orgs.find(o => canManageOrganization(o.membership.role));
+      if (!targetOrg) {
+        const defaultName = `${ctx.user.name || "My"} Workspace`;
+        const slug = `ws-${ctx.user.id.slice(-6)}-${Date.now().toString(36)}`;
+        const createdOrg = await createOrganization({
+          name: defaultName,
+          slug,
+          createdByUserId: ctx.user.id,
+        });
+        targetOrg = {
+          organization: createdOrg,
+          membership: { id: "", role: "owner" },
+          stats: { electionCount: 0, memberCount: 1, activeElectionCount: 0 },
+        };
+      }
+
+      if (
+        input.timing === "scheduled" &&
+        input.opensAt &&
+        input.closesAt &&
+        input.closesAt <= input.opensAt
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The closing time must be after the opening time.",
+        });
+      }
+
+      const election = await createElection({
+        organizationId: targetOrg.organization.id,
+        createdByUserId: ctx.user.id,
+        title: input.title,
+        ballotPrompt: input.title,
+        description: input.description,
+        ballotMode: input.ballotMode,
+        opensAt:
+          input.timing === "scheduled" && input.opensAt
+            ? input.opensAt
+            : undefined,
+        closesAt:
+          input.timing === "scheduled" && input.closesAt
+            ? input.closesAt
+            : undefined,
+      });
+
+      for (const optionName of input.options) {
+        await addCandidate({
+          electionId: election.id,
+          name: optionName,
+        });
+      }
+
+      if (input.publishNow) {
+        await setElectionStatus(election.id, "open");
+      }
+
+      await writeAuditEvent({
+        organizationId: targetOrg.organization.id,
+        actorUserId: ctx.user.id,
+        eventType: "election.created",
+        targetType: "election",
+        targetId: election.id,
+        metadata: { ballotMode: election.ballotMode, quickBallot: true },
+      });
+
+      return {
+        electionId: election.id,
+        status: input.publishNow ? "open" : "draft",
+      };
     }),
 
   list: protectedProcedure

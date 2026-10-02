@@ -15,16 +15,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import {
   ArrowLeft,
+  ArrowRight,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronRight,
+  Copy,
   Download,
+  ExternalLink,
   Eye,
   FileClock,
   LockKeyhole,
   Plus,
   Send,
+  Share2,
   ShieldAlert,
+  Sparkles,
   Trash2,
   Upload,
   UserPlus,
@@ -160,6 +166,13 @@ export default function ElectionManager() {
   const [resendingVoterId, setResendingVoterId] = useState<string | null>(null);
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/ballot/${electionId}`);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
 
   useEffect(() => {
     if (election) {
@@ -295,66 +308,213 @@ export default function ElectionManager() {
           )}
         </div>
 
-        <section className="production-review readiness-review">
-          <div className="readiness-copy">
-            <span className="section-label">CONTROLLED ELECTION SETUP</span>
-            <h2>
-              {election.status === "draft" || election.status === "scheduled"
-                ? "Get ready to open."
-                : "Election operations"}
-            </h2>
-            <p>
-              {election.status === "draft" || election.status === "scheduled"
-                ? "Complete each step before opening. Ballotly will lock the rules, roster, and ballot when voting begins."
-                : "Configuration is locked while this election is active. Monitor participation and keep the operational record close."}
-            </p>
-            {readiness.data?.steps && (
+        {/* BALLOT LIFECYCLE & SHARING BANNER */}
+        <section
+          style={{
+            margin: "20px 0",
+            background: election.status === "open" ? "#eef8f6" : "#fdf9f0",
+            border:
+              election.status === "open"
+                ? "1.5px solid #6ec1b1"
+                : "1.5px solid #dcd0ba",
+            borderRadius: "10px",
+            padding: "20px 24px",
+            display: "grid",
+            gap: "16px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "16px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
               <div
-                className="readiness-steps"
-                aria-label="Election readiness steps"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "4px",
+                }}
               >
-                {readiness.data.steps.map((step, index) => (
-                  <div
-                    className={`readiness-step ${step.complete ? "complete" : "needs-work"}`}
-                    key={step.key}
-                  >
-                    <span className="readiness-step-number">
-                      {step.complete ? "✓" : index + 1}
-                    </span>
-                    <span>
-                      <strong>{step.label}</strong>
-                      <small>{step.summary}</small>
-                    </span>
-                  </div>
-                ))}
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: "999px",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    background:
+                      election.status === "open"
+                        ? "#196b4b"
+                        : election.status === "draft"
+                        ? "#b58728"
+                        : "#66777b",
+                    color: "#fff",
+                  }}
+                >
+                  {election.status === "open"
+                    ? "● Live Voting"
+                    : election.status === "draft"
+                    ? "Draft Ballot"
+                    : election.status === "closed"
+                    ? "Voting Closed"
+                    : election.status}
+                </span>
+                <span style={{ fontSize: "12px", color: "#607477" }}>
+                  {election.ballotMode === "anonymous"
+                    ? "🔒 Anonymous (Secret Ballot)"
+                    : "👁️ Visible Roll Call"}
+                </span>
               </div>
-            )}
+              <h2
+                style={{
+                  fontFamily: '"DM Serif Display", Georgia, serif',
+                  fontSize: "22px",
+                  margin: "4px 0",
+                  color: "#11383e",
+                }}
+              >
+                {election.status === "draft"
+                  ? "Ready to publish and share?"
+                  : election.status === "open"
+                  ? "Your ballot is live and accepting votes!"
+                  : "This election is completed."}
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "13px",
+                  color: "#566b70",
+                  maxWidth: "600px",
+                }}
+              >
+                {election.status === "draft"
+                  ? "Review your candidates and rules below. When you're ready, publish your ballot to unlock the shareable voting link."
+                  : election.status === "open"
+                  ? "Copy your unique voting link and share it on Slack, WhatsApp, email, or social media. Anyone with the link can cast one vote."
+                  : "Final vote totals have been recorded. You can view the results breakdown or export the record below."}
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <Button
+                variant="outline"
+                onClick={() => setLocation(`/ballot/${election.id}`)}
+                style={{ borderColor: "#c4b59b", gap: "6px" }}
+              >
+                <Eye size={16} /> Preview ballot
+              </Button>
+              {election.status === "draft" && (
+                <Button
+                  className="button-ink"
+                  onClick={() =>
+                    updateStatus.mutate({ electionId, status: "open" })
+                  }
+                  disabled={
+                    updateStatus.isPending || election.candidates.length < 2
+                  }
+                  style={{ gap: "6px" }}
+                >
+                  {updateStatus.isPending ? "Publishing…" : "Publish ballot now"}
+                  <ArrowRight size={16} />
+                </Button>
+              )}
+              {election.status === "open" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setPendingStatus("closed")}
+                  disabled={updateStatus.isPending}
+                  style={{ borderColor: "#d89e90", color: "#8a3528" }}
+                >
+                  Close voting
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="review-chips">
-            <span
-              className={
-                election.candidates.length >= 2 ? "ready" : "needs-work"
-              }
+
+          {/* Share Link Row */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              background: "#fff",
+              border: "1px solid #d5cbb8",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flex: 1,
+                minWidth: "240px",
+              }}
             >
-              {election.candidates.length >= 2 ? "✓" : "!"}{" "}
-              {election.candidates.length} candidates
-            </span>
-            <span
-              className={
-                (voters.data?.length ?? 0) >= 1 ? "ready" : "needs-work"
-              }
-            >
-              {(voters.data?.length ?? 0) >= 1 ? "✓" : "!"}{" "}
-              {voters.data?.length ?? 0} voters
-            </span>
-            <span className="ready">
-              <LockKeyhole size={13} /> {election.ballotMode}
-            </span>
-            {readiness.data?.counts.pendingVoters ? (
-              <span className="needs-work">
-                ! {readiness.data.counts.pendingVoters} pending invitations
+              <Share2 size={16} style={{ color: "#196b4b", flexShrink: 0 }} />
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: "#163a40",
+                  flexShrink: 0,
+                }}
+              >
+                Voting link:
               </span>
-            ) : null}
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "#2a545c",
+                  fontFamily: "monospace",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {window.location.origin}/ballot/{election.id}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Button
+                size="sm"
+                onClick={handleCopyLink}
+                className="button-ink"
+                style={{ height: "34px", padding: "0 14px", gap: "6px" }}
+              >
+                {copiedLink ? <Check size={14} /> : <Copy size={14} />}
+                {copiedLink ? "Link copied!" : "Copy link"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(`/ballot/${election.id}`, "_blank")}
+                style={{
+                  height: "34px",
+                  padding: "0 10px",
+                  borderColor: "#c8baa2",
+                }}
+                title="Open voting page in new tab"
+              >
+                <ExternalLink size={14} />
+              </Button>
+            </div>
           </div>
         </section>
 

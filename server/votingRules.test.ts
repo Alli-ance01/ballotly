@@ -35,10 +35,11 @@ describe("Ballotly election safeguards", () => {
     expect(normalizeEmail("  MEMBER@Example.org ")).toBe("member@example.org");
   });
 
-  it("requires a meaningful ballot and roster before an election can open", () => {
-    expect(() => assertElectionReadyForLaunch({ candidateCount: 1, voterCount: 2, status: "draft" })).toThrow(/at least two candidates/);
-    expect(() => assertElectionReadyForLaunch({ candidateCount: 2, voterCount: 0, status: "draft" })).toThrow(/at least one voter/);
+  it("requires a meaningful ballot before an election can open", () => {
+    expect(() => assertElectionReadyForLaunch({ candidateCount: 1, voterCount: 2, status: "draft" })).toThrow(/at least two/);
+    expect(() => assertElectionReadyForLaunch({ candidateCount: 2, voterCount: 0, status: "draft", requireEnrolledVoters: true })).toThrow(/at least one voter/);
     expect(() => assertElectionReadyForLaunch({ candidateCount: 2, voterCount: 1, status: "draft" })).not.toThrow();
+    expect(() => assertElectionReadyForLaunch({ candidateCount: 2, voterCount: 0, status: "draft" })).not.toThrow();
   });
 
   it("validates a pasted voter roster before any records are imported", () => {

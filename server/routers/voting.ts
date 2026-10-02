@@ -1,6 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { castVote, getElectionById, getOrganizationAccess, getVotingEligibility, writeAuditEvent } from "../db";
+import {
+  castVote,
+  createOrUpdateVoterEligibility,
+  getElectionById,
+  getOrganizationAccess,
+  getVotingEligibility,
+  writeAuditEvent,
+} from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { assertVoteEligibility, isElectionOpen, normalizeEmail } from "../votingRules";
 import { canManageOrganization } from "../authorizationRules";
@@ -15,7 +22,15 @@ export const votingRouter = router({
       if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
       const access = await getOrganizationAccess({ organizationId: election.organizationId, userId: ctx.user.id });
       const isManager = Boolean(access && canManageOrganization(access.membership.role));
-      const eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email ?? "") });
+      let eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email ?? "") });
+      if (!eligibility && isElectionOpen(election) && ctx.user.email) {
+        await createOrUpdateVoterEligibility({
+          electionId: election.id,
+          email: normalizeEmail(ctx.user.email),
+          displayName: ctx.user.name || undefined,
+        });
+        eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email) });
+      }
       if (!eligibility && !isManager) throw new TRPCError({ code: "FORBIDDEN", message: "You are not enrolled as a voter for this election." });
       return {
         election,
@@ -35,7 +50,15 @@ export const votingRouter = router({
     .mutation(async ({ ctx, input }) => {
       const election = await getElectionById(input.electionId);
       if (!election) throw new TRPCError({ code: "NOT_FOUND", message: "Election not found." });
-      const eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email ?? "") });
+      let eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email ?? "") });
+      if (!eligibility && isElectionOpen(election) && ctx.user.email) {
+        await createOrUpdateVoterEligibility({
+          electionId: election.id,
+          email: normalizeEmail(ctx.user.email),
+          displayName: ctx.user.name || undefined,
+        });
+        eligibility = await getVotingEligibility({ electionId: election.id, userId: ctx.user.id, email: normalizeEmail(ctx.user.email) });
+      }
       try {
         assertVoteEligibility({ election, eligibilityFound: Boolean(eligibility), alreadyVoted: Boolean(eligibility?.hasVoted) });
       } catch (error) {
