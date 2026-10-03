@@ -27,17 +27,13 @@ export default function Account() {
   const register = trpc.auth.register.useMutation({
     onSuccess: user => {
       utils.auth.me.setData(undefined, user);
-      setLocation(`/account/verify?returnTo=${encodeURIComponent(returnTo)}`);
+      setLocation(returnTo);
     },
   });
   const login = trpc.auth.login.useMutation({
     onSuccess: user => {
       utils.auth.me.setData(undefined, user);
-      setLocation(
-        user.emailVerifiedAt
-          ? returnTo
-          : `/account/verify?returnTo=${encodeURIComponent(returnTo)}`
-      );
+      setLocation(returnTo);
     },
   });
   const busy = register.isPending || login.isPending;

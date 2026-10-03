@@ -117,10 +117,19 @@ export default function EmailAction({ kind }: { kind: "verify" | "reset" }) {
             ) : (
               <form className="account-form" onSubmit={submit}>
                 {kind === "verify" && !token && (
-                  <p className="account-error">
-                    This verification link is missing or incomplete. Sign in,
-                    then request a new verification email.
-                  </p>
+                  <div style={{ textAlign: "center", padding: "12px 0" }}>
+                    <p style={{ fontSize: "14px", color: "#566b70", lineHeight: 1.5, margin: "0 0 16px" }}>
+                      We sent a verification link to your email. Click the link in that message to verify your address.
+                    </p>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => setLocation(returnTo)}
+                      style={{ width: "100%", borderColor: "#c4b59b" }}
+                    >
+                      Continue to workspace
+                    </Button>
+                  </div>
                 )}
                 {kind === "verify" && token && (
                   <Button
