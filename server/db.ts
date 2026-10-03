@@ -609,6 +609,37 @@ export async function listElectionsForOrganization(organizationId: string) {
   return elections.map(asElection);
 }
 
+export async function listElectionsWithStatsForUser(userId: string) {
+  await connectMongo();
+  const orgs = await listOrganizationsForUser(userId);
+  const elections: (ElectionView & { candidateCount: number; totalVotes: number })[] = [];
+  for (const org of orgs) {
+    const orgElections = await listElectionsForOrganization(org.organization.id);
+    elections.push(...orgElections.map(e => ({ ...e, candidateCount: 0, totalVotes: 0 })));
+  }
+  if (elections.length === 0) return [];
+  const electionIds = elections.map(e => objectId(e.id, "Election"));
+  const [candidates, voteCounts] = await Promise.all([
+    CandidateModel.aggregate([
+      { $match: { electionId: { $in: electionIds } } },
+      { $group: { _id: "$electionId", count: { $sum: 1 } } },
+    ]),
+    VoteModel.aggregate([
+      { $match: { electionId: { $in: electionIds } } },
+      { $group: { _id: "$electionId", count: { $sum: 1 } } },
+    ]),
+  ]);
+  const candMap = new Map(candidates.map(c => [c._id.toString(), c.count]));
+  const voteMap = new Map(voteCounts.map(v => [v._id.toString(), v.count]));
+  return elections.map(e => ({
+    ...e,
+    candidateCount: candMap.get(e.id) ?? 0,
+    totalVotes: voteMap.get(e.id) ?? 0,
+  })).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
 export async function getElectionById(electionId: string) {
   await connectMongo();
   const id = objectId(electionId, "Election");
@@ -995,14 +1026,19 @@ export async function getVoterEnrollmentCount(electionId: string) {
 
 export async function getVotingEligibility(input: {
   electionId: string;
-  userId: string;
-  email: string;
+  userId?: string | null;
+  email?: string | null;
 }) {
   await connectMongo();
   const electionId = objectId(input.electionId, "Election");
-  const userId = objectId(input.userId, "User");
-  const conditions: Record<string, unknown>[] = [{ userId }];
-  if (input.email) conditions.push({ email: normalizeEmail(input.email) });
+  const conditions: Record<string, unknown>[] = [];
+  if (input.userId && mongoose.isValidObjectId(input.userId)) {
+    conditions.push({ userId: new mongoose.Types.ObjectId(input.userId) });
+  }
+  if (input.email) {
+    conditions.push({ email: normalizeEmail(input.email) });
+  }
+  if (conditions.length === 0) return null;
   const voter = await VoterEligibilityModel.findOne({
     electionId,
     $and: [
@@ -1016,12 +1052,13 @@ export async function getVotingEligibility(input: {
     ],
   }).lean();
   if (!voter) return null;
-  if (!voter.userId) {
+  if (!voter.userId && input.userId && mongoose.isValidObjectId(input.userId)) {
+    const userObjId = new mongoose.Types.ObjectId(input.userId);
     await VoterEligibilityModel.updateOne(
       { _id: voter._id, userId: null },
-      { $set: { userId, invitationStatus: "accepted" } }
+      { $set: { userId: userObjId, invitationStatus: "accepted" } }
     );
-    voter.userId = userId;
+    voter.userId = userObjId;
     voter.invitationStatus = "accepted";
   }
   return { id: asId(voter._id), hasVoted: voter.hasVoted };
@@ -1101,12 +1138,14 @@ export async function getElectionResults(electionId: string) {
     ]),
     VoterEligibilityModel.countDocuments({ electionId: objectElectionId }),
   ]);
+  const totalVotes = candidateResults.reduce((sum, r) => sum + r.voteCount, 0);
   return {
     candidateResults: candidateResults.map(result => ({
       candidateId: asId(result.candidateId),
       candidateName: result.candidateName,
       voteCount: result.voteCount,
     })),
+    totalVotes,
     eligibleVoters,
   };
 }

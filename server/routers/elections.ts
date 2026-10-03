@@ -15,6 +15,7 @@ import {
   getOrganizationAccess,
   getVoterEnrollmentCount,
   listElectionsForOrganization,
+  listElectionsWithStatsForUser,
   listOrganizationsForUser,
   listVoterEligibility,
   listAuditEvents,
@@ -109,18 +110,7 @@ export const electionRouter = router({
     }),
 
   myBallots: protectedProcedure.query(async ({ ctx }) => {
-    const orgs = await listOrganizationsForUser(ctx.user.id);
-    const elections = [];
-    for (const org of orgs) {
-      const orgElections = await listElectionsForOrganization(
-        org.organization.id
-      );
-      elections.push(...orgElections);
-    }
-    return elections.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    return listElectionsWithStatsForUser(ctx.user.id);
   }),
 
   createQuickBallot: protectedProcedure
@@ -179,6 +169,7 @@ export const electionRouter = router({
         ballotPrompt: input.title,
         description: input.description,
         ballotMode: input.ballotMode,
+        resultsVisibility: "always",
         opensAt:
           input.timing === "scheduled" && input.opensAt
             ? input.opensAt
@@ -667,7 +658,7 @@ export const electionRouter = router({
       return listVoterEligibility(election.id);
     }),
 
-  results: protectedProcedure
+  results: publicProcedure
     .input(z.object({ electionId: objectIdInput }))
     .query(async ({ ctx, input }) => {
       const election = await getElectionById(input.electionId);
@@ -676,13 +667,36 @@ export const electionRouter = router({
           code: "NOT_FOUND",
           message: "Election not found.",
         });
-      await requireManager(election.organizationId, ctx.user.id);
+
+      let isManager = false;
+      if (ctx.user) {
+        const access = await getOrganizationAccess(
+          election.organizationId,
+          ctx.user.id
+        );
+        isManager = Boolean(
+          access && canManageOrganization(access.membership.role)
+        );
+      }
+
+      // Managers can ALWAYS view live results in real-time
+      if (isManager) {
+        return getElectionResults(election.id);
+      }
+
+      // For public/voters, respect resultsVisibility settings
       const isClosed =
         election.status === "closed" || election.status === "archived";
+      if (election.resultsVisibility === "hidden") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Results are not public for this election.",
+        });
+      }
       if (election.resultsVisibility === "after_close" && !isClosed) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Results are available after the election closes.",
+          message: "Results will be available once the election closes.",
         });
       }
       return getElectionResults(election.id);

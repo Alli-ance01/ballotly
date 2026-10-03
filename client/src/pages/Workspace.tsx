@@ -288,7 +288,10 @@ export default function Workspace() {
                           {election.ballotMode === "anonymous" ? "Anonymous" : "Visible"}
                         </span>
                         <span style={{ fontSize: "12px", color: "#8a9a9d" }}>
-                          {election.candidates?.length ?? 0} options
+                          {(election as any).candidateCount ?? election.candidates?.length ?? 0} options
+                        </span>
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: (election as any).totalVotes ? "#196b4b" : "#7e9195" }}>
+                          {(election as any).totalVotes ?? 0} votes cast
                         </span>
                       </div>
                       <h3 style={{ margin: 0, fontSize: "17px", color: "#11383e", fontWeight: 700 }}>

@@ -1,19 +1,29 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import {
   ArrowLeft,
-  ArrowRight,
   CheckCircle2,
   Eye,
   Info,
   LockKeyhole,
   ShieldCheck,
-  Vote,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useRoute } from "wouter";
+
+const getOrCreateVoterToken = () => {
+  if (typeof window === "undefined") return "";
+  let token = localStorage.getItem("ballotly_voter_token");
+  if (!token) {
+    token = "vt_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem("ballotly_voter_token", token);
+  }
+  return token;
+};
 
 export default function Ballot() {
   const [, params] = useRoute("/ballot/:electionId");
@@ -21,12 +31,18 @@ export default function Ballot() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
 
+  const [voterToken] = useState(() => getOrCreateVoterToken());
+  const [guestName, setGuestName] = useState(user?.name || "");
+
   const ballot = trpc.voting.ballot.useQuery(
-    { electionId },
-    { enabled: Boolean(electionId && user) }
+    { electionId, voterToken },
+    { enabled: Boolean(electionId) }
   );
   const castVote = trpc.voting.cast.useMutation({
-    onSuccess: () => ballot.refetch(),
+    onSuccess: () => {
+      ballot.refetch();
+      results.refetch();
+    },
   });
   const results = trpc.elections.results.useQuery(
     { electionId },
@@ -35,82 +51,7 @@ export default function Ballot() {
 
   const [selectedCandidate, setSelectedCandidate] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
-  const [showResultsView, setShowResultsView] = useState(false);
-
-  // If user is not signed in, show a dedicated voter sign-in prompt
-  if (!user) {
-    return (
-      <div className="ballot-page">
-        <header className="ballot-header">
-          <button className="brand-lockup" onClick={() => setLocation("/")}>
-            <span className="logo-mark">
-              <i />
-              <i />
-              <i />
-            </span>
-            <span>ballotly</span>
-          </button>
-        </header>
-        <main
-          className="ballot-main"
-          style={{
-            display: "grid",
-            placeItems: "center",
-            minHeight: "60vh",
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{
-              maxWidth: "440px",
-              textAlign: "center",
-              padding: "36px 28px",
-              background: "#fffaf0",
-              border: "1px solid #d8cdb8",
-              borderRadius: "12px",
-              boxShadow: "0 12px 32px rgba(18, 56, 62, 0.06)",
-            }}
-          >
-            <Vote
-              size={40}
-              style={{ color: "#114b54", margin: "0 auto 14px" }}
-            />
-            <h1
-              style={{
-                fontFamily: '"DM Serif Display", Georgia, serif',
-                fontSize: "26px",
-                margin: "6px 0",
-                color: "#11383e",
-              }}
-            >
-              Sign in to cast your ballot
-            </h1>
-            <p
-              style={{
-                color: "#5a7074",
-                fontSize: "14px",
-                lineHeight: 1.5,
-                margin: "12px 0 24px",
-              }}
-            >
-              Ballotly enforces strict one-person-one-vote rules to keep elections
-              honest and verified. Sign in or register in 15 seconds to cast your
-              vote.
-            </p>
-            <Button
-              onClick={() =>
-                setLocation(`/account?redirect=/ballot/${electionId}`)
-              }
-              className="button-ink"
-              style={{ width: "100%", gap: "8px", height: "44px" }}
-            >
-              Sign in or register to vote <ArrowRight size={16} />
-            </Button>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  const [showResultsView, setShowResultsView] = useState(true);
 
   if (ballot.isLoading) {
     return <div className="app-loading">Preparing your ballot…</div>;
@@ -128,7 +69,7 @@ export default function Ballot() {
           </p>
           <Button
             className="button-ink"
-            onClick={() => setLocation("/workspace")}
+            onClick={() => setLocation("/")}
           >
             Return to Ballotly
           </Button>
@@ -147,10 +88,17 @@ export default function Ballot() {
       castVote.mutate({
         electionId,
         candidateId: selectedCandidate,
+        voterToken,
+        voterName: guestName.trim() || undefined,
         attributableDisclosureAcknowledged: acknowledged,
       });
     }
   };
+
+  const totalVotesCast =
+    (results.data as any)?.totalVotes ??
+    results.data?.candidateResults?.reduce((sum, c) => sum + c.voteCount, 0) ??
+    0;
 
   return (
     <div className="ballot-page">
@@ -163,12 +111,14 @@ export default function Ballot() {
           </span>
           <span>ballotly</span>
         </button>
-        <button
-          className="quiet-back"
-          onClick={() => setLocation(`/elections/${election.id}`)}
-        >
-          <ArrowLeft size={16} /> Leave ballot
-        </button>
+        {user && (
+          <button
+            className="quiet-back"
+            onClick={() => setLocation(`/elections/${election.id}`)}
+          >
+            <ArrowLeft size={16} /> Return to election desk
+          </button>
+        )}
       </header>
 
       <main className="ballot-main">
@@ -178,7 +128,7 @@ export default function Ballot() {
               ? "ADMIN PREVIEW"
               : election.status === "open"
               ? "LIVE BALLOT"
-              : "BALLOT PREVIEW"}
+              : "BALLOT OVERVIEW"}
           </span>
           <span>01 / 01</span>
         </div>
@@ -202,7 +152,7 @@ export default function Ballot() {
               <strong>Administrator Preview</strong>
               <p>
                 You are previewing how voters see this ballot. Because you are an
-                administrator and not casting a vote, submission is disabled.
+                administrator and not voting as a participant, voting is in test preview mode.
               </p>
             </div>
           </section>
@@ -222,69 +172,72 @@ export default function Ballot() {
 
         {eligibility.hasVoted ? (
           <section className="vote-success">
-            <CheckCircle2 size={38} style={{ color: "#196b4b" }} />
+            <CheckCircle2 size={44} style={{ color: "#196b4b", marginBottom: "8px" }} />
             <h2>Your vote has been submitted!</h2>
             <p>Thank you for participating in {election.title}.</p>
 
             {results.data && (
-              <div style={{ marginTop: "20px", textAlign: "left", width: "100%" }}>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowResultsView(!showResultsView)}
-                  style={{ marginBottom: "16px", borderColor: "#c2b49c" }}
-                >
-                  {showResultsView ? "Hide live totals" : "View current vote totals"}
-                </Button>
+              <div style={{ marginTop: "24px", textAlign: "left", width: "100%" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <span style={{ fontSize: "12px", letterSpacing: "0.08em", fontWeight: 700, color: "#5a7074" }}>
+                    LIVE TOTALS ({totalVotesCast} votes cast)
+                  </span>
+                  <button
+                    onClick={() => setShowResultsView(!showResultsView)}
+                    style={{ background: "none", border: "none", color: "#114b54", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {showResultsView ? "Hide breakdown" : "Show breakdown"}
+                  </button>
+                </div>
 
                 {showResultsView && (
                   <div
                     style={{
                       background: "#fff",
                       border: "1px solid #d5c8b2",
-                      borderRadius: "8px",
-                      padding: "16px 20px",
+                      borderRadius: "10px",
+                      padding: "18px 20px",
+                      boxShadow: "0 4px 16px rgba(18, 56, 62, 0.04)",
                     }}
                   >
-                    <h3 style={{ fontSize: "15px", margin: "0 0 12px", color: "#11383e" }}>
-                      Current Results ({results.data.eligibleVoters} total votes)
-                    </h3>
-                    <div style={{ display: "grid", gap: "10px" }}>
-                      {results.data.candidateResults.map((cand) => (
-                        <div key={cand.candidateId}>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              fontSize: "13px",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            <span>{cand.candidateName}</span>
-                            <strong>{cand.voteCount} votes</strong>
-                          </div>
-                          <div
-                            style={{
-                              height: "8px",
-                              background: "#e8edea",
-                              borderRadius: "999px",
-                              overflow: "hidden",
-                            }}
-                          >
+                    <div style={{ display: "grid", gap: "14px" }}>
+                      {results.data.candidateResults.map((cand) => {
+                        const pct = totalVotesCast > 0 ? Math.round((cand.voteCount / totalVotesCast) * 100) : 0;
+                        return (
+                          <div key={cand.candidateId}>
                             <div
                               style={{
-                                height: "100%",
-                                background: "#16515b",
-                                width: `${Math.max(
-                                  4,
-                                  (cand.voteCount /
-                                    Math.max(1, results.data!.eligibleVoters)) *
-                                    100
-                                )}%`,
+                                display: "flex",
+                                justifyContent: "space-between",
+                                fontSize: "14px",
+                                marginBottom: "6px",
                               }}
-                            />
+                            >
+                              <span style={{ fontWeight: 600, color: "#11383e" }}>{cand.candidateName}</span>
+                              <span style={{ color: "#5a7074" }}>
+                                <strong>{cand.voteCount}</strong> ({pct}%)
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                height: "9px",
+                                background: "#edf1ee",
+                                borderRadius: "999px",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  height: "100%",
+                                  background: "#16515b",
+                                  width: `${Math.max(cand.voteCount > 0 ? 5 : 0, pct)}%`,
+                                  transition: "width 0.4s ease",
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -293,6 +246,43 @@ export default function Ballot() {
           </section>
         ) : (
           <>
+            {attributable && (
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid #dcd1be",
+                  borderRadius: "10px",
+                  padding: "16px 20px",
+                  marginBottom: "20px",
+                  textAlign: "left",
+                }}
+              >
+                <Label
+                  htmlFor="voterName"
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: "#11383e",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Your Name (recorded with your vote)
+                </Label>
+                <Input
+                  id="voterName"
+                  placeholder="Enter your name or handle"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  style={{
+                    fontSize: "15px",
+                    height: "42px",
+                    borderColor: "#c4b59e",
+                  }}
+                />
+              </div>
+            )}
+
             <section className="ballot-question">
               <span>YOUR QUESTION</span>
               <h2>{election.ballotPrompt}</h2>
@@ -345,7 +335,7 @@ export default function Ballot() {
             <div className="ballot-submit">
               <div>
                 <ShieldCheck size={17} />
-                <span>One ballot per enrolled voter</span>
+                <span>One ballot per voter</span>
               </div>
               <Button
                 disabled={
@@ -353,6 +343,7 @@ export default function Ballot() {
                   !selectedCandidate ||
                   !eligibility.isOpen ||
                   (attributable && !acknowledged) ||
+                  (attributable && !guestName.trim()) ||
                   castVote.isPending
                 }
                 onClick={submit}

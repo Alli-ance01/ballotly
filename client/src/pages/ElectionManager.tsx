@@ -92,18 +92,12 @@ export default function ElectionManager() {
   const election = electionQuery.data;
   const results = trpc.elections.results.useQuery(
     { electionId },
-    {
-      enabled: Boolean(
-        election &&
-          (election.status === "closed" ||
-            election.status === "archived" ||
-            election.resultsVisibility !== "after_close")
-      ),
-    }
+    { enabled: Boolean(electionId) }
   );
   const refreshElection = () => {
     utils.elections.get.invalidate({ electionId });
     utils.elections.listVoters.invalidate({ electionId });
+    results.refetch();
     audit.refetch();
   };
   const updateStatus = trpc.elections.updateStatus.useMutation({
@@ -516,6 +510,126 @@ export default function ElectionManager() {
               </Button>
             </div>
           </div>
+
+          {/* Live Votes Summary Card */}
+          {results.data && (
+            <div
+              style={{
+                background: "#fff",
+                border: "1px solid #d5cbb8",
+                borderRadius: "8px",
+                padding: "16px 18px",
+                display: "grid",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                }}
+              >
+                <div>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      letterSpacing: "0.06em",
+                      color: "#5c7176",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {election.status === "open"
+                      ? "LIVE VOTE TALLY"
+                      : "RECORDED VOTE TALLY"}
+                  </span>
+                  <div
+                    style={{
+                      fontSize: "20px",
+                      fontWeight: 700,
+                      color: "#11383e",
+                      marginTop: "2px",
+                    }}
+                  >
+                    {(results.data as any).totalVotes ??
+                      results.data.candidateResults.reduce(
+                        (sum, c) => sum + c.voteCount,
+                        0
+                      )}{" "}
+                    total votes cast
+                  </div>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => results.refetch()}
+                  style={{
+                    height: "30px",
+                    fontSize: "12px",
+                    borderColor: "#c8baa2",
+                  }}
+                >
+                  Refresh tally
+                </Button>
+              </div>
+
+              <div style={{ display: "grid", gap: "10px" }}>
+                {results.data.candidateResults.map((result) => {
+                  const total =
+                    (results.data as any).totalVotes ??
+                    results.data.candidateResults.reduce(
+                      (sum, c) => sum + c.voteCount,
+                      0
+                    ) ??
+                    0;
+                  const pct =
+                    total > 0
+                      ? Math.round((result.voteCount / total) * 100)
+                      : 0;
+                  return (
+                    <div key={result.candidateId}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "13px",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, color: "#163a40" }}>
+                          {result.candidateName}
+                        </span>
+                        <span style={{ color: "#566b70" }}>
+                          <strong>{result.voteCount}</strong> ({pct}%)
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          height: "8px",
+                          background: "#e8edea",
+                          borderRadius: "999px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            background: "#16515b",
+                            width: `${Math.max(result.voteCount > 0 ? 5 : 0, pct)}%`,
+                            transition: "width 0.4s ease",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="privacy-control">
@@ -857,9 +971,7 @@ export default function ElectionManager() {
             )}
           </section>
         </div>
-        {(election.status === "closed" ||
-          election.status === "archived" ||
-          election.resultsVisibility !== "after_close") && (
+        {results.data && (
           <section className="results-panel">
             <div>
               <span className="section-label">
@@ -868,20 +980,42 @@ export default function ElectionManager() {
                   : "OFFICIAL RESULT"}
               </span>
               <h2>Vote totals</h2>
-              <p>{results.data?.eligibleVoters ?? 0} eligible voters</p>
+              <p>
+                {(results.data as any).totalVotes ??
+                  results.data.candidateResults.reduce(
+                    (sum, c) => sum + c.voteCount,
+                    0
+                  )}{" "}
+                votes cast · {results.data.eligibleVoters} registered voters
+              </p>
             </div>
             <div className="result-bars">
-              {results.data?.candidateResults.map(result => (
-                <div key={result.candidateId}>
-                  <span>{result.candidateName}</span>
-                  <i
-                    style={{
-                      width: `${Math.max(8, (result.voteCount / Math.max(1, results.data?.eligibleVoters ?? 1)) * 100)}%`,
-                    }}
-                  />
-                  <strong>{result.voteCount}</strong>
-                </div>
-              ))}
+              {results.data.candidateResults.map(result => {
+                const total =
+                  (results.data as any).totalVotes ??
+                  results.data.candidateResults.reduce(
+                    (sum, c) => sum + c.voteCount,
+                    0
+                  ) ??
+                  0;
+                const pct =
+                  total > 0
+                    ? Math.round((result.voteCount / total) * 100)
+                    : 0;
+                return (
+                  <div key={result.candidateId}>
+                    <span>{result.candidateName}</span>
+                    <i
+                      style={{
+                        width: `${Math.max(result.voteCount > 0 ? 8 : 0, pct)}%`,
+                      }}
+                    />
+                    <strong>
+                      {result.voteCount} ({pct}%)
+                    </strong>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
