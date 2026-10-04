@@ -206,7 +206,7 @@ export const votingRouter = router({
         metadata: {
           ballotMode: election.ballotMode,
           isGuest: !ctx.user,
-          displayName,
+          ...(election.ballotMode === "attributable" ? { displayName } : {}),
         },
       });
 

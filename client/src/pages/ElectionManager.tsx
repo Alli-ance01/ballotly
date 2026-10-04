@@ -823,83 +823,130 @@ export default function ElectionManager() {
             <div className="panel-heading">
               <div>
                 <span className="section-label">ELIGIBILITY</span>
-                <h2>People who can vote</h2>
+                <h2>Voter enrollment</h2>
               </div>
               <span className="panel-count">
                 {voters.data?.length ?? 0} enrolled
               </span>
             </div>
-            <div className="voter-list">
-              {voters.data?.length ? (
-                voters.data.map(voter => (
-                  <div key={voter.id}>
-                    <span className="voter-dot">
-                      {voter.displayName?.slice(0, 1).toUpperCase() ||
-                        voter.email.slice(0, 1).toUpperCase()}
-                    </span>
-                    <span>
-                      <strong>{voter.displayName || voter.email}</strong>
-                      <small>
-                        {voter.hasVoted
-                          ? "Ballot submitted"
-                          : voter.invitationStatus === "revoked"
-                            ? "Invitation revoked"
-                            : voter.invitationStatus === "expired"
-                              ? "Invitation expired"
-                              : voter.activationStatus === "active"
-                                ? "Invitation accepted · eligible"
-                                : "Invitation pending · awaiting account sign-in"}
-                      </small>
-                    </span>
-                    {voter.hasVoted ? (
-                      <CheckCircle2 size={16} />
-                    ) : (
-                      isConfigurable &&
-                      voter.invitationStatus !== "revoked" && (
-                        <div className="voter-actions">
-                          <button
-                            className="quiet-action"
-                            disabled={sendInvitation.isPending && resendingVoterId === voter.id}
-                            onClick={() => {
-                              setResendingVoterId(voter.id);
-                              sendInvitation.mutate(
-                                {
-                                  electionId,
-                                  voterId: voter.id,
-                                },
-                                {
-                                  onSettled: () => setResendingVoterId(null),
-                                }
-                              );
-                            }}
-                          >
-                            {sendInvitation.isPending && resendingVoterId === voter.id
-                              ? "Sending…"
-                              : voter.activationStatus === "active"
-                                ? "Resend"
-                                : "Invite"}
-                          </button>
-                          <button
-                            className="icon-danger"
-                            aria-label={`Revoke ${voter.email}`}
-                            onClick={() =>
-                              setVoterToRemove({
-                                id: voter.id,
-                                name: voter.displayName || voter.email,
-                              })
-                            }
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      )
-                    )}
+
+            {election.ballotMode === "anonymous" ? (
+              /* ── ANONYMOUS MODE: privacy shield, no individual names ── */
+              <div className="anon-voter-shield">
+                <div className="anon-shield-icon"><LockKeyhole size={22} /></div>
+                <div className="anon-shield-body">
+                  <strong>Voter identities are protected</strong>
+                  <p>
+                    This is an anonymous ballot. Individual voter names and
+                    selections are not displayed — even to administrators — to
+                    preserve ballot integrity.
+                  </p>
+                  <div className="anon-turnout-stats">
+                    <div>
+                      <strong>{voters.data?.length ?? 0}</strong>
+                      <span>Enrolled</span>
+                    </div>
+                    <div>
+                      <strong>
+                        {(results.data as any)?.totalVotes ??
+                          results.data?.candidateResults?.reduce(
+                            (s: number, c: any) => s + c.voteCount,
+                            0
+                          ) ??
+                          0}
+                      </strong>
+                      <span>Votes Cast</span>
+                    </div>
+                    <div>
+                      <strong>
+                        {(() => {
+                          const enrolled = voters.data?.length ?? 0;
+                          const cast =
+                            (results.data as any)?.totalVotes ??
+                            results.data?.candidateResults?.reduce(
+                              (s: number, c: any) => s + c.voteCount,
+                              0
+                            ) ??
+                            0;
+                          if (enrolled > 0) return `${Math.round((cast / enrolled) * 100)}%`;
+                          return `${cast} cast`;
+                        })()}
+                      </strong>
+                      <span>Turnout</span>
+                    </div>
                   </div>
-                ))
-              ) : (
-                <p className="muted-copy">No enrolled voters yet.</p>
-              )}
-            </div>
+                </div>
+              </div>
+            ) : (
+              /* ── ATTRIBUTABLE MODE: show full voter list ── */
+              <div className="voter-list">
+                {voters.data?.length ? (
+                  voters.data.map(voter => (
+                    <div key={voter.id}>
+                      <span className="voter-dot">
+                        {voter.displayName?.slice(0, 1).toUpperCase() ||
+                          voter.email.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span>
+                        <strong>{voter.displayName || voter.email}</strong>
+                        <small>
+                          {voter.hasVoted
+                            ? "Ballot submitted"
+                            : voter.invitationStatus === "revoked"
+                              ? "Invitation revoked"
+                              : voter.invitationStatus === "expired"
+                                ? "Invitation expired"
+                                : voter.activationStatus === "active"
+                                  ? "Invitation accepted · eligible"
+                                  : "Invitation pending · awaiting account sign-in"}
+                        </small>
+                      </span>
+                      {voter.hasVoted ? (
+                        <CheckCircle2 size={16} />
+                      ) : (
+                        isConfigurable &&
+                        voter.invitationStatus !== "revoked" && (
+                          <div className="voter-actions">
+                            <button
+                              className="quiet-action"
+                              disabled={sendInvitation.isPending && resendingVoterId === voter.id}
+                              onClick={() => {
+                                setResendingVoterId(voter.id);
+                                sendInvitation.mutate(
+                                  { electionId, voterId: voter.id },
+                                  { onSettled: () => setResendingVoterId(null) }
+                                );
+                              }}
+                            >
+                              {sendInvitation.isPending && resendingVoterId === voter.id
+                                ? "Sending…"
+                                : voter.activationStatus === "active"
+                                  ? "Resend"
+                                  : "Invite"}
+                            </button>
+                            <button
+                              className="icon-danger"
+                              aria-label={`Revoke ${voter.email}`}
+                              onClick={() =>
+                                setVoterToRemove({
+                                  id: voter.id,
+                                  name: voter.displayName || voter.email,
+                                })
+                              }
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted-copy">No enrolled voters yet.</p>
+                )}
+              </div>
+            )}
+
             {isConfigurable && (
               <>
                 <form className="enroll-form" onSubmit={submitVoter}>
@@ -969,54 +1016,60 @@ export default function ElectionManager() {
             )}
           </section>
         </div>
-        {results.data && (
-          <section className="results-panel">
-            <div>
-              <span className="section-label">
-                {election.status === "open"
-                  ? "LIVE INTERIM RESULTS"
-                  : "OFFICIAL RESULT"}
-              </span>
-              <h2>Vote totals</h2>
-              <p>
-                {(results.data as any).totalVotes ??
-                  results.data.candidateResults.reduce(
-                    (sum, c) => sum + c.voteCount,
-                    0
-                  )}{" "}
-                votes cast · {results.data.eligibleVoters} registered voters
-              </p>
-            </div>
-            <div className="result-bars">
-              {results.data.candidateResults.map(result => {
-                const total =
-                  (results.data as any).totalVotes ??
-                  results.data.candidateResults.reduce(
-                    (sum, c) => sum + c.voteCount,
-                    0
-                  ) ??
-                  0;
-                const pct =
-                  total > 0
-                    ? Math.round((result.voteCount / total) * 100)
-                    : 0;
-                return (
-                  <div key={result.candidateId}>
-                    <span>{result.candidateName}</span>
-                    <i
-                      style={{
-                        width: `${Math.max(result.voteCount > 0 ? 8 : 0, pct)}%`,
-                      }}
-                    />
-                    <strong>
-                      {result.voteCount} ({pct}%)
-                    </strong>
+        {results.data && (() => {
+          const totalVotes =
+            (results.data as any).totalVotes ??
+            results.data.candidateResults.reduce(
+              (s: number, c: any) => s + c.voteCount,
+              0
+            );
+          const sorted = results.data.candidateResults
+            .slice()
+            .sort((a, b) => b.voteCount - a.voteCount);
+          const topCandidate = sorted[0];
+          const BARS = ["#16515b","#c75945","#d4a82b","#2a7c67","#7b4f9a","#d96b37"];
+          return (
+            <section className="results-panel results-panel--rich">
+              <div className="results-panel-head">
+                <div>
+                  <span className="section-label">
+                    {election.status === "open" ? "LIVE INTERIM RESULTS" : "OFFICIAL RESULT"}
+                  </span>
+                  <h2>{election.status === "open" ? "Live vote totals" : "Final results"}</h2>
+                  <p>
+                    {totalVotes} votes cast · {results.data.eligibleVoters} registered voters
+                    {results.data.eligibleVoters > 0 && (
+                      <> · {Math.round((totalVotes / results.data.eligibleVoters) * 100)}% turnout</>
+                    )}
+                  </p>
+                </div>
+                {topCandidate && totalVotes > 0 && election.status !== "open" && (
+                  <div className="results-winner-chip">
+                    <span>🏆 {topCandidate.candidateName}</span>
+                    <small>
+                      {Math.round((topCandidate.voteCount / totalVotes) * 100)}% of votes
+                    </small>
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
+                )}
+              </div>
+              <div className="result-bars result-bars--rich">
+                {sorted.map((result, idx) => {
+                  const pct = totalVotes > 0 ? Math.round((result.voteCount / totalVotes) * 100) : 0;
+                  return (
+                    <div
+                      key={result.candidateId}
+                      className={idx === 0 && totalVotes > 0 ? "result-bar-top" : ""}
+                    >
+                      <span>{result.candidateName}</span>
+                      <i style={{ width: `${Math.max(result.voteCount > 0 ? 8 : 0, pct)}%`, background: BARS[idx % BARS.length] }} />
+                      <strong>{result.voteCount} ({pct}%)</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })()}
         <section className="records-panel">
           <div>
             <div>

@@ -655,7 +655,15 @@ export const electionRouter = router({
           message: "Election not found.",
         });
       await requireManager(election.organizationId, ctx.user.id);
-      return listVoterEligibility(election.id);
+      const voters = await listVoterEligibility(election.id);
+      if (election.ballotMode === "anonymous") {
+        // Strict privacy: never disclose whether an individual voter has cast their ballot
+        return voters.map(v => ({
+          ...v,
+          hasVoted: false,
+        }));
+      }
+      return voters;
     }),
 
   results: publicProcedure
