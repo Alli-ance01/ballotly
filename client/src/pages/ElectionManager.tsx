@@ -371,13 +371,14 @@ export default function ElectionManager() {
               flexWrap: "wrap",
             }}
           >
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
-                  marginBottom: "4px",
+                  marginBottom: "8px",
+                  flexWrap: "wrap",
                 }}
               >
                 <span
@@ -414,8 +415,11 @@ export default function ElectionManager() {
               <h2
                 style={{
                   fontFamily: '"DM Serif Display", Georgia, serif',
-                  fontSize: "22px",
-                  margin: "4px 0",
+                  fontSize: "clamp(22px, 3vw, 30px)",
+                  fontWeight: 400,
+                  lineHeight: 1.05,
+                  letterSpacing: "-0.03em",
+                  margin: "0 0 8px",
                   color: "#11383e",
                 }}
               >
@@ -429,15 +433,18 @@ export default function ElectionManager() {
                 style={{
                   margin: 0,
                   fontSize: "13px",
+                  lineHeight: 1.6,
                   color: "#566b70",
-                  maxWidth: "600px",
+                  maxWidth: "520px",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
                 }}
               >
                 {election.status === "draft"
-                  ? "Review your candidates and rules below. When you're ready, publish your ballot to unlock the shareable voting link."
+                  ? "Review your candidates and rules below. When ready, publish your ballot to unlock the shareable voting link."
                   : election.status === "open"
-                  ? "Copy your unique voting link and share it on Slack, WhatsApp, email, or social media. Anyone with the link can cast one vote."
-                  : "Final vote totals have been recorded. You can view the results breakdown or export the record below."}
+                  ? "Share your voting link via Slack, WhatsApp, email, or social media. Anyone with the link can cast one vote."
+                  : "Final vote totals have been recorded. View the results breakdown or export the record below."}
               </p>
             </div>
 
@@ -450,9 +457,23 @@ export default function ElectionManager() {
               }}
             >
               <Button
-                variant="outline"
+                className={
+                  election.status === "draft" || election.status === "open"
+                    ? "button-ink"
+                    : ""
+                }
+                variant={
+                  election.status === "draft" || election.status === "open"
+                    ? undefined
+                    : "outline"
+                }
                 onClick={() => setLocation(`/ballot/${election.id}`)}
-                style={{ borderColor: "#c4b59b", gap: "6px" }}
+                style={{
+                  gap: "6px",
+                  ...(election.status !== "draft" && election.status !== "open"
+                    ? { borderColor: "#c4b59b" }
+                    : {}),
+                }}
               >
                 <Eye size={16} /> Preview ballot
               </Button>
