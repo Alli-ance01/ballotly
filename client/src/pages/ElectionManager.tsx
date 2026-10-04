@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
@@ -101,41 +102,91 @@ export default function ElectionManager() {
     audit.refetch();
   };
   const updateStatus = trpc.elections.updateStatus.useMutation({
-    onSuccess: refreshElection,
+    onSuccess: (data) => {
+      refreshElection();
+      const label = statusLabel[data.status as ElectionStatusOption] || data.status;
+      toast.success(`Ballot status changed to ${label}`, {
+        description:
+          data.status === "open"
+            ? "Voting is now live and accepting ballots."
+            : data.status === "closed"
+              ? "Voting has ended. Official results are now finalized."
+              : data.status === "scheduled"
+                ? "Ballot is scheduled according to timeframe rules."
+                : `Election marked as ${label.toLowerCase()}.`,
+      });
+    },
+    onError: (error) => {
+      toast.error("Could not update status", {
+        description: error.message || "Failed to update election status.",
+      });
+    },
   });
   const updateMode = trpc.elections.updateBallotMode.useMutation({
-    onSuccess: refreshElection,
+    onSuccess: (data) => {
+      refreshElection();
+      toast.success(`Ballot mode updated to ${data.ballotMode}`);
+    },
+    onError: (err) => toast.error(err.message),
   });
   const updateSchedule = trpc.elections.updateSchedule.useMutation({
-    onSuccess: refreshElection,
+    onSuccess: () => {
+      refreshElection();
+      toast.success("Election schedule saved");
+    },
+    onError: (err) => toast.error(err.message),
   });
   const updateResultsVisibility =
     trpc.elections.updateResultsVisibility.useMutation({
-      onSuccess: refreshElection,
+      onSuccess: () => {
+        refreshElection();
+        toast.success("Results visibility updated");
+      },
+      onError: (err) => toast.error(err.message),
     });
   const addCandidate = trpc.elections.addCandidate.useMutation({
-    onSuccess: refreshElection,
+    onSuccess: () => {
+      refreshElection();
+      toast.success("Candidate added");
+    },
+    onError: (err) => toast.error(err.message),
   });
   const removeCandidate = trpc.elections.removeCandidate.useMutation({
-    onSuccess: refreshElection,
+    onSuccess: () => {
+      refreshElection();
+      toast.success("Candidate removed");
+    },
+    onError: (err) => toast.error(err.message),
   });
   const enrollVoter = trpc.elections.enrollVoter.useMutation({
     onSuccess: () => {
       refreshElection();
       readiness.refetch();
+      toast.success("Voter enrolled");
     },
+    onError: (err) => toast.error(err.message),
   });
   const sendInvitation = trpc.elections.sendInvitation.useMutation({
     onSuccess: () => {
       refreshElection();
       readiness.refetch();
+      toast.success("Invitation sent");
     },
+    onError: (err) => toast.error(err.message),
   });
   const importVoters = trpc.elections.importVoters.useMutation({
-    onSuccess: refreshElection,
+    onSuccess: (data) => {
+      refreshElection();
+      toast.success(`Roster imported (${data?.length ?? 0} voters)`);
+    },
+    onError: (err) => toast.error(err.message),
   });
   const removeVoter = trpc.elections.removeVoter.useMutation({
-    onSuccess: refreshElection,
+    onSuccess: () => {
+      refreshElection();
+      toast.success("Voter removed");
+    },
+    onError: (err) => toast.error(err.message),
   });
   const exportRecord = trpc.elections.exportRecord.useQuery(
     { electionId },
@@ -146,9 +197,6 @@ export default function ElectionManager() {
   const [voterEmail, setVoterEmail] = useState("");
   const [voterName, setVoterName] = useState("");
   const [roster, setRoster] = useState("");
-  const [pendingStatus, setPendingStatus] = useState<
-    (typeof statusOptions)[number] | null
-  >(null);
   const [candidateToRemove, setCandidateToRemove] = useState<{
     id: string;
     name: string;
@@ -165,6 +213,7 @@ export default function ElectionManager() {
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`${window.location.origin}/ballot/${electionId}`);
     setCopiedLink(true);
+    toast.success("Ballot link copied to clipboard!");
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
@@ -195,12 +244,6 @@ export default function ElectionManager() {
   const isConfigurable =
     election.status === "draft" || election.status === "scheduled";
   const isDraft = election.status === "draft";
-  const transitionCopy =
-    pendingStatus === "open"
-      ? "Opening confirms the candidates, voter roster, and privacy configuration. Eligibility will then lock."
-      : pendingStatus === "closed"
-        ? "Closing stops new ballots and makes final totals available according to the results rule."
-        : `Move this election to ${pendingStatus ?? "the selected state"}?`;
   const submitCandidate = (event: FormEvent) => {
     event.preventDefault();
     addCandidate.mutate(
@@ -275,11 +318,12 @@ export default function ElectionManager() {
               <select
                 value={election.status}
                 disabled={updateStatus.isPending}
-                onChange={event =>
-                  setPendingStatus(
-                    event.target.value as (typeof statusOptions)[number]
-                  )
-                }
+                onChange={event => {
+                  const newStatus = event.target.value as (typeof statusOptions)[number];
+                  if (newStatus !== election.status) {
+                    updateStatus.mutate({ electionId, status: newStatus });
+                  }
+                }}
               >
                 {(allowedNext[election.status as ElectionStatusOption] || statusOptions).map(status => (
                   <option key={status} value={status}>
@@ -427,11 +471,13 @@ export default function ElectionManager() {
               {election.status === "open" && (
                 <Button
                   variant="outline"
-                  onClick={() => setPendingStatus("closed")}
+                  onClick={() =>
+                    updateStatus.mutate({ electionId, status: "closed" })
+                  }
                   disabled={updateStatus.isPending}
                   style={{ borderColor: "#d89e90", color: "#8a3528" }}
                 >
-                  Close voting
+                  {updateStatus.isPending ? "Closing…" : "Close voting"}
                 </Button>
               )}
             </div>
@@ -1109,29 +1155,6 @@ export default function ElectionManager() {
           )}
         </section>
       </main>
-      <AlertDialog
-        open={Boolean(pendingStatus)}
-        onOpenChange={open => !open && setPendingStatus(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm election status</AlertDialogTitle>
-            <AlertDialogDescription>{transitionCopy}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep current status</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingStatus)
-                  updateStatus.mutate({ electionId, status: pendingStatus });
-                setPendingStatus(null);
-              }}
-            >
-              Confirm status change
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       <AlertDialog
         open={Boolean(candidateToRemove)}
         onOpenChange={open => !open && setCandidateToRemove(null)}
