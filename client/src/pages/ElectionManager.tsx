@@ -186,7 +186,7 @@ export default function ElectionManager() {
             className="button-ink"
             onClick={() => setLocation("/workspace")}
           >
-            Return to workspace
+            Return to Dashboard
           </Button>
         </div>
       </div>
@@ -255,11 +255,9 @@ export default function ElectionManager() {
         </button>
         <button
           className="quiet-back"
-          onClick={() =>
-            setLocation(`/workspace?org=${election.organizationId}`)
-          }
+          onClick={() => setLocation("/workspace")}
         >
-          <ArrowLeft size={16} /> Election boards
+          <ArrowLeft size={16} /> Back to Dashboard
         </button>
       </header>
       <main className="election-main">

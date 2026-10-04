@@ -1093,19 +1093,15 @@ export async function castVote(input: {
         throw new Error(
           "A ballot has already been submitted for this election."
         );
-      await VoteModel.create(
-        [
-          {
-            electionId,
-            candidateId,
-            mode: input.mode,
-            ...(input.mode === "attributable"
-              ? { voterEligibilityId: eligibilityId }
-              : {}),
-          },
-        ],
-        { session }
-      );
+      const voteData: Record<string, any> = {
+        electionId,
+        candidateId,
+        mode: input.mode,
+      };
+      if (input.mode === "attributable") {
+        voteData.voterEligibilityId = eligibilityId;
+      }
+      await VoteModel.create([voteData], { session });
     });
   } finally {
     await session.endSession();

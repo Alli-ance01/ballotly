@@ -407,9 +407,8 @@ var voteSchema = new Schema(
     // Stored only for attributable elections. Anonymous ballots do not persist an identity link.
     voterEligibilityId: {
       type: Schema.Types.ObjectId,
-      default: null,
-      unique: true,
-      sparse: true
+      default: void 0,
+      required: false
     },
     mode: { type: String, enum: ballotModes, required: true },
     castAt: { type: Date, default: Date.now }
@@ -417,6 +416,13 @@ var voteSchema = new Schema(
   { timestamps: false }
 );
 voteSchema.index({ electionId: 1, candidateId: 1 });
+voteSchema.index(
+  { voterEligibilityId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { voterEligibilityId: { $type: "objectId" } }
+  }
+);
 var auditEventSchema = new Schema(
   {
     organizationId: {
@@ -446,17 +452,66 @@ var VoterEligibilityModel = mongoose.models.VoterEligibility || mongoose.model("
 var VoteModel = mongoose.models.Vote || mongoose.model("Vote", voteSchema);
 var AuditEventModel = mongoose.models.AuditEvent || mongoose.model("AuditEvent", auditEventSchema);
 var connectionPromise = null;
+var indexSyncPromise = null;
+
+async function syncVoteIndexes() {
+  try {
+    const voteCollection = mongoose.connection.collection("votes");
+    const indexes = await voteCollection.indexes().catch(() => []);
+    const badIndex = indexes.find(
+      (idx) => idx.name === "voterEligibilityId_1"
+    );
+
+    if (badIndex && (!badIndex.partialFilterExpression || badIndex.sparse)) {
+      console.log("[db] Dropping legacy voterEligibilityId_1 index...");
+      await voteCollection.dropIndex("voterEligibilityId_1").catch(() => {});
+    }
+
+    await voteCollection
+      .updateMany(
+        { voterEligibilityId: null },
+        { $unset: { voterEligibilityId: "" } }
+      )
+      .catch(() => {});
+
+    await voteCollection
+      .createIndex(
+        { voterEligibilityId: 1 },
+        {
+          name: "voterEligibilityId_1",
+          unique: true,
+          partialFilterExpression: { voterEligibilityId: { $type: "objectId" } }
+        }
+      )
+      .catch(() => {});
+  } catch (err) {
+    console.error("[db] Index synchronization notice:", err);
+  }
+}
+
 async function connectMongo() {
-  if (mongoose.connection.readyState === 1) return mongoose;
+  if (mongoose.connection.readyState === 1) {
+    if (!indexSyncPromise) {
+      indexSyncPromise = syncVoteIndexes();
+    }
+    await indexSyncPromise;
+    return mongoose;
+  }
   const uri = process.env.MONGODB_URI;
   if (!uri) {
     throw new Error(
       "MONGODB_URI is not configured. Add a MongoDB Atlas connection string before using protected platform features."
     );
   }
-  connectionPromise ??= mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 7e3
-  });
+  connectionPromise ??= mongoose
+    .connect(uri, {
+      serverSelectionTimeoutMS: 7e3
+    })
+    .then(async (m) => {
+      indexSyncPromise ??= syncVoteIndexes();
+      await indexSyncPromise;
+      return m;
+    });
   return connectionPromise;
 }
 
@@ -1336,17 +1391,15 @@ async function castVote(input) {
         throw new Error(
           "A ballot has already been submitted for this election."
         );
-      await VoteModel.create(
-        [
-          {
-            electionId,
-            candidateId,
-            mode: input.mode,
-            ...input.mode === "attributable" ? { voterEligibilityId: eligibilityId } : {}
-          }
-        ],
-        { session }
-      );
+      const voteData = {
+        electionId,
+        candidateId,
+        mode: input.mode
+      };
+      if (input.mode === "attributable") {
+        voteData.voterEligibilityId = eligibilityId;
+      }
+      await VoteModel.create([voteData], { session });
     });
   } finally {
     await session.endSession();

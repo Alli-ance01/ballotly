@@ -47,10 +47,10 @@ export default function OrganizationWorkspace() {
     }
   }, [organizationId, setLocation, shouldOpenBoardSetup]);
 
-  if (!organizationId) return <div className="app-loading"><div><h1>Choose an organization</h1><Button className="button-ink" onClick={() => setLocation("/workspace")}>Return to organizations</Button></div></div>;
-  if (organizations.isLoading) return <div className="app-loading">Loading workspace…</div>;
-  if (organizations.error) return <div className="app-loading"><div><h1>Unable to load your workspace</h1><p>{organizations.error.message}</p><Button className="button-ink" onClick={() => organizations.refetch()}>Try again</Button></div></div>;
-  if (!selected) return <div className="app-loading"><div><h1>Workspace unavailable</h1><Button onClick={() => setLocation("/workspace")} className="button-ink">Return to organizations</Button></div></div>;
+  if (!organizationId) return <div className="app-loading"><div><h1>Choose an organization</h1><Button className="button-ink" onClick={() => setLocation("/workspace")}>Return to Dashboard</Button></div></div>;
+  if (organizations.isLoading) return <div className="app-loading">Loading team space…</div>;
+  if (organizations.error) return <div className="app-loading"><div><h1>Unable to load team space</h1><p>{organizations.error.message}</p><Button className="button-ink" onClick={() => organizations.refetch()}>Try again</Button></div></div>;
+  if (!selected) return <div className="app-loading"><div><h1>Team space unavailable</h1><Button onClick={() => setLocation("/workspace")} className="button-ink">Return to Dashboard</Button></div></div>;
 
   const canManage = selected.membership.role === "owner" || selected.membership.role === "admin";
 
@@ -70,21 +70,21 @@ export default function OrganizationWorkspace() {
   return <div className="workspace-shell">
     <header className="workspace-header">
       <button className="brand-lockup" onClick={() => setLocation("/")}><span className="logo-mark"><i /><i /><i /></span><span>ballotly</span></button>
-      <button className="quiet-back" onClick={() => setLocation("/workspace")}><ArrowLeft size={16} /> All organizations</button>
+      <button className="quiet-back" onClick={() => setLocation("/workspace")}><ArrowLeft size={16} /> Back to Dashboard</button>
     </header>
     <VerificationBanner />
     <main className="organization-main">
-      <div className="organization-heading"><div><div className="crumb">{selected.organization.slug} <ChevronRight size={14} /> election desk</div><h1>{selected.organization.name}</h1><p>{selected.organization.description || "A focused place for your organization's decisions."}</p></div><span className="role-chip">{selected.membership.role}</span></div>
+      <div className="organization-heading"><div><div className="crumb">{selected.organization.slug} <ChevronRight size={14} /> team governance</div><h1>{selected.organization.name}</h1><p>{selected.organization.description || "A focused place for your team's decisions and elections."}</p></div><span className="role-chip">{selected.membership.role}</span></div>
       <div className="dash-stats"><div><span>ELECTIONS</span><strong>{elections.data?.length ?? 0}</strong></div><div><span>DEFAULT PRIVACY</span><strong>Anonymous</strong></div><div><span>RESULTS</span><strong>After close</strong></div></div>
 
       <div className="section-split">
-        <div><span className="section-label">YOUR ELECTION BOARDS</span><h2>Every decision<br /><em>has a home.</em></h2></div>
+        <div><span className="section-label">TEAM ELECTIONS</span><h2>Every decision<br /><em>has a home.</em></h2></div>
         {canManage && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild><Button className="button-ink"><Plus size={17} /> Create election board</Button></DialogTrigger>
           <DialogContent className="ballot-dialog wide-dialog">
             <DialogHeader>
               <DialogTitle>Set up your election board</DialogTitle>
-              <DialogDescription>Step 2 of 2. Choose timing and ballot privacy before you enroll voters. The privacy model is then locked.</DialogDescription>
+              <DialogDescription>Choose timing and ballot privacy before you enroll voters. The privacy model is then locked.</DialogDescription>
             </DialogHeader>
             <form className="form-stack" onSubmit={submit}>
               <div className="form-grid">
@@ -112,13 +112,13 @@ export default function OrganizationWorkspace() {
         ? <div className="workspace-empty"><ShieldAlert size={25} /><h2>Election boards could not load.</h2><p>{elections.error.message}</p><Button className="button-ink" onClick={() => elections.refetch()}>Try again</Button></div>
         : elections.data?.length
         ? <div className="election-list">{elections.data.map(election => <button className="election-row" key={election.id} onClick={() => setLocation(`/elections/${election.id}`)}><span className={statusClass(election.status)}>{election.status}</span><span className="election-row-main"><strong>{election.title}</strong><span>{election.ballotPrompt}</span></span><span className="privacy-tag">{election.ballotMode === "anonymous" ? <LockKeyhole size={14} /> : <UsersRound size={14} />}{election.ballotMode}</span><CalendarDays size={16} /><ArrowRight size={17} /></button>)}</div>
-        : <div className="empty-board"><ShieldAlert size={25} /><div><span className="section-label">STEP 2 OF 2</span><h3>Create your first election board.</h3><p>Name the election, ask the question, and make the privacy promise before you invite anyone.</p></div>{canManage && <Button onClick={() => setDialogOpen(true)} className="button-ink"><Plus size={16} /> Create election board</Button>}</div>
+        : <div className="empty-board"><ShieldAlert size={25} /><div><span className="section-label">TEAM ELECTIONS</span><h3>No elections created for this team yet.</h3><p>Create a ballot, set the privacy model, and invite your team or voters.</p></div>{canManage && <Button onClick={() => setDialogOpen(true)} className="button-ink"><Plus size={16} /> Create election board</Button>}</div>
       }
 
       {selected.membership.role === "owner" && <section className="governance-panel">
         <div>
           <span className="section-label">GOVERNANCE ROLES</span>
-          <h2>Who runs this workspace</h2>
+          <h2>Team administrators & members</h2>
           <p>Invite administrators or members by email. Access becomes active only when they sign in or create a Ballotly account with that exact address.</p>
         </div>
         <div className="governance-people">

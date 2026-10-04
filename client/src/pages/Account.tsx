@@ -127,13 +127,13 @@ export default function Account() {
               </span>
               <h2>
                 {mode === "signin"
-                  ? "Sign in to your workspace."
+                  ? "Sign in to your dashboard."
                   : "Create your Ballotly account."}
               </h2>
               <p>
                 {mode === "signin"
-                  ? "Use the email and password connected to your organization."
-                  : "Your first workspace is one thoughtful decision away."}
+                  ? "Manage your ballots, share voting links, and view live results."
+                  : "Your voting dashboard is one thoughtful decision away."}
               </p>
             </div>
             <form className="account-form" onSubmit={submit}>
@@ -202,7 +202,7 @@ export default function Account() {
               <CheckCircle2 size={15} />{" "}
               <span>
                 {mode === "create"
-                  ? "We will email a verification link before you can access a workspace."
+                  ? "Immediate access to create and manage ballots. A verification link will be sent to your email."
                   : "Your account is private to Ballotly."}
               </span>
             </div>

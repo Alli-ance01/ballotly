@@ -244,9 +244,8 @@ const voteSchema = new Schema(
     // Stored only for attributable elections. Anonymous ballots do not persist an identity link.
     voterEligibilityId: {
       type: Schema.Types.ObjectId,
-      default: null,
-      unique: true,
-      sparse: true,
+      default: undefined,
+      required: false,
     },
     mode: { type: String, enum: ballotModes, required: true },
     castAt: { type: Date, default: Date.now },
@@ -254,6 +253,13 @@ const voteSchema = new Schema(
   { timestamps: false }
 );
 voteSchema.index({ electionId: 1, candidateId: 1 });
+voteSchema.index(
+  { voterEligibilityId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { voterEligibilityId: { $type: "objectId" } },
+  }
+);
 
 const auditEventSchema = new Schema(
   {
@@ -304,17 +310,68 @@ export const AuditEventModel =
   mongoose.models.AuditEvent || mongoose.model("AuditEvent", auditEventSchema);
 
 let connectionPromise: Promise<typeof mongoose> | null = null;
+let indexSyncPromise: Promise<void> | null = null;
+
+async function syncVoteIndexes() {
+  try {
+    const voteCollection = mongoose.connection.collection("votes");
+    const indexes = await voteCollection.indexes().catch(() => []);
+    const badIndex = indexes.find(
+      (idx: any) => idx.name === "voterEligibilityId_1"
+    );
+
+    // If the legacy broken index exists (without partialFilterExpression or with sparse indexing nulls), drop it
+    if (badIndex && (!badIndex.partialFilterExpression || badIndex.sparse)) {
+      console.log("[db] Dropping legacy voterEligibilityId_1 index...");
+      await voteCollection.dropIndex("voterEligibilityId_1").catch(() => {});
+    }
+
+    // Clean up any lingering documents where voterEligibilityId was recorded as null
+    await voteCollection
+      .updateMany(
+        { voterEligibilityId: null },
+        { $unset: { voterEligibilityId: "" } }
+      )
+      .catch(() => {});
+
+    // Ensure the partial unique index exists (only indexes non-null valid ObjectIds)
+    await voteCollection
+      .createIndex(
+        { voterEligibilityId: 1 },
+        {
+          name: "voterEligibilityId_1",
+          unique: true,
+          partialFilterExpression: { voterEligibilityId: { $type: "objectId" } },
+        }
+      )
+      .catch(() => {});
+  } catch (err) {
+    console.error("[db] Index synchronization notice:", err);
+  }
+}
 
 export async function connectMongo() {
-  if (mongoose.connection.readyState === 1) return mongoose;
+  if (mongoose.connection.readyState === 1) {
+    if (!indexSyncPromise) {
+      indexSyncPromise = syncVoteIndexes();
+    }
+    await indexSyncPromise;
+    return mongoose;
+  }
   const uri = process.env.MONGODB_URI;
   if (!uri) {
     throw new Error(
       "MONGODB_URI is not configured. Add a MongoDB Atlas connection string before using protected platform features."
     );
   }
-  connectionPromise ??= mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 7000,
-  });
+  connectionPromise ??= mongoose
+    .connect(uri, {
+      serverSelectionTimeoutMS: 7000,
+    })
+    .then(async (m) => {
+      indexSyncPromise ??= syncVoteIndexes();
+      await indexSyncPromise;
+      return m;
+    });
   return connectionPromise;
 }
