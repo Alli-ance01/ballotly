@@ -293,3 +293,99 @@
 
 /* Guided readiness and voter invitation surfaces */
 .readiness-review{position:relative;overflow:hidden;align-items:stretch;border-color:#b9cfc5;background:linear-gradient(135deg,#fdf9f0 0%,#eef4ee 100%);box-shadow:8px 8px 0 rgba(14,75,85,.06)}.readiness-review::before{content:"";position:absolute;inset:0 auto 0 0;width:5px;background:#2b806b}.readiness-copy{flex:1;min-width:0}.readiness-copy>p{max-width:650px}.readiness-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:20px}.readiness-step{display:grid;grid-template-columns:25px 1fr;gap:9px;min-height:76px;align-items:start;padding:11px;border:1px solid #dccfb7;background:rgba(255,250,240,.72);transition:transform 160ms,border-color 160ms,background 160ms}.readiness-step:hover{transform:translateY(-2px);border-color:#ae9b71}.readiness-step.complete{border-color:#b8d3c5;background:#e6f0e9}.readiness-step-number{width:23px;height:23px;display:grid;place-items:center;border-radius:50%;background:#e7d9c1;color:#6f614d;font-size:10px;font-weight:850}.readiness-step.complete .readiness-step-number{background:#2a7c67;color:#fff}.readiness-step strong,.readiness-step small{display:block}.readiness-step strong{color:#1b484c;font-size:11px}.readiness-step small{margin-top:4px;color:#6b7c7d;font-size:10px;line-height:1.35}.readiness-review .review-chips{max-width:190px;align-content:start}.voter-actions{display:flex;align-items:center;gap:4px}.quiet-action{border:1px solid #b7cec4;border-radius:999px;background:#eef5ef;color:#1b6767;font-size:10px;font-weight:800;padding:6px 9px}.quiet-action:hover{background:#dcece2;text-decoration:none}.invitation-page{background:radial-gradient(circle at 75% 12%,rgba(228,197,91,.22),transparent 25rem),#f3ecde}.invitation-page .ballot-header{background:rgba(249,243,231,.78);backdrop-filter:blur(10px)}.invitation-label{font-size:10px;color:#61767a;font-weight:800;letter-spacing:.13em}.invitation-main{max-width:780px;margin:0 auto;padding:88px 28px 110px}.invitation-main::before{content:"";display:block;width:56px;height:5px;margin-bottom:28px;background:#c75945}.invitation-main h1{max-width:700px;font-family:"DM Serif Display",Georgia,serif;font-size:clamp(3.4rem,7vw,6.2rem);line-height:.9;letter-spacing:-.06em;font-weight:400;margin:16px 0;color:#123b41}.invitation-lede{color:#637679;font-size:16px;line-height:1.65;max-width:600px}.invitation-main .disclosure-banner{margin:38px 0 24px;box-shadow:5px 5px 0 rgba(14,75,85,.06)}.invitation-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#d9c9ad;margin:24px 0;border:1px solid #d9c9ad}.invitation-facts div{min-height:82px;background:rgba(251,245,233,.9);padding:16px}.invitation-facts span{display:block;color:#718184;font-size:9px;font-weight:800;letter-spacing:.11em}.invitation-facts strong{display:block;color:#244b50;font-size:12px;line-height:1.4;margin-top:7px}.invitation-action{margin-top:18px;min-height:47px;padding-inline:20px}.invitation-note{display:flex;gap:7px;align-items:center;color:#6a7b7d;font-size:11px}.invitation-note svg{color:#2a7c67}@media (max-width:780px){.readiness-steps{grid-template-columns:1fr 1fr}.readiness-review .review-chips{max-width:none}.invitation-main{padding:58px 20px 76px}.invitation-facts{grid-template-columns:1fr}.invitation-label{display:none}}@media (prefers-reduced-motion:reduce){.readiness-step{transition:none}}
+
+/* ═══════════════════════════════════════════════════════════════════
+   QR CODE VOTING MODAL
+═══════════════════════════════════════════════════════════════════ */
+.qr-modal-content {
+  background: #fdfaf3 !important;
+  border: 1px solid #dacaaa !important;
+  border-radius: 14px !important;
+  padding: 24px !important;
+  color: #123b41 !important;
+}
+.qr-badge-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e3f1eb;
+  color: #166448;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+}
+.qr-card-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0;
+}
+.qr-card-frame {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #dbcfb7;
+  box-shadow: 0 10px 32px rgba(18, 59, 65, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-image {
+  display: block;
+  width: 220px;
+  height: 220px;
+  object-fit: contain;
+}
+.qr-privacy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.qr-privacy-pill.anonymous {
+  background: #eaf3ee;
+  color: #1a634e;
+  border: 1px solid #bfdcce;
+}
+.qr-privacy-pill.attributable {
+  background: #f8e5df;
+  color: #8c3629;
+  border: 1px solid #e8bcaf;
+}
+.qr-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+.qr-action-btn {
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 8px 10px !important;
+}
+.qr-modal-footnote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #6c7f82;
+  margin: 14px 0 0;
+}
+@media (max-width: 480px) {
+  .qr-modal-actions {
+    grid-template-columns: 1fr;
+  }
+}
+

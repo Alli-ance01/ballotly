@@ -28,6 +28,7 @@ import {
   FileClock,
   LockKeyhole,
   Plus,
+  QrCode,
   Send,
   Share2,
   ShieldAlert,
@@ -39,6 +40,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
+import { QRCodeModal } from "@/components/QRCodeModal";
 
 const statusOptions = [
   "draft",
@@ -209,6 +211,7 @@ export default function ElectionManager() {
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`${window.location.origin}/ballot/${electionId}`);
@@ -538,6 +541,23 @@ export default function ElectionManager() {
               >
                 {copiedLink ? <Check size={14} /> : <Copy size={14} />}
                 {copiedLink ? "Link copied!" : "Copy link"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setQrModalOpen(true)}
+                style={{
+                  height: "34px",
+                  padding: "0 12px",
+                  gap: "6px",
+                  borderColor: "#c8baa2",
+                  color: "#114b54",
+                  fontWeight: 650,
+                }}
+                title="Display QR code for phone scanning"
+              >
+                <QrCode size={15} />
+                <span>QR Code</span>
               </Button>
               <Button
                 size="sm"
@@ -1210,6 +1230,14 @@ export default function ElectionManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <QRCodeModal
+        open={qrModalOpen}
+        onOpenChange={setQrModalOpen}
+        electionId={election.id}
+        title={election.title}
+        ballotMode={election.ballotMode}
+      />
     </div>
   );
 }

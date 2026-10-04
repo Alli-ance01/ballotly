@@ -10,6 +10,7 @@ import {
   Eye,
   Info,
   LockKeyhole,
+  QrCode,
   ShieldCheck,
   Trophy,
   BarChart3,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useRoute } from "wouter";
+import { QRCodeModal } from "@/components/QRCodeModal";
 
 const getOrCreateVoterToken = () => {
   if (typeof window === "undefined") return "";
@@ -73,6 +75,7 @@ export default function Ballot() {
 
   const [selectedCandidate, setSelectedCandidate] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
 
   if (ballot.isLoading) {
     return (
@@ -353,6 +356,15 @@ export default function Ballot() {
             <ArrowLeft size={16} /> Return to election desk
           </button>
         )}
+        {election.status === "open" && (
+          <button
+            className="quiet-back"
+            onClick={() => setQrOpen(true)}
+            style={{ color: "#16515b", fontWeight: 700 }}
+          >
+            <QrCode size={16} /> QR Code
+          </button>
+        )}
       </header>
 
       <main className="ballot-main">
@@ -569,6 +581,14 @@ export default function Ballot() {
           </>
         )}
       </main>
+
+      <QRCodeModal
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+        electionId={election.id}
+        title={election.title}
+        ballotMode={election.ballotMode}
+      />
     </div>
   );
 }
